@@ -366,7 +366,7 @@ scp <path_to_untar'd_runtime_library>/XIR/aarch64/libxir-1.1.0-Linux-build46.deb
 scp <path_to_untar'd_runtime_library>1/VART/aarch64/libvart-1.1.0-Linux-build46.deb root@IP_OF_BOARD:~/
 ```
 
-As an aexample, in our case the exact commands we introduce are the following.
+As an example, in our case the exact commands we introduce are the following.
 
 ```
 sudo scp /home/arroas/Vitis-AI/vitis-ai-runtime-1.1.0/unilog/aarch64/libunilog-1.1.0-Linux-build46.deb root@192.168.0.21:~/
