@@ -26,9 +26,9 @@ In the Vivado installation, import the board files.
 
 Hardware description project
 ----------------------------
-A project with a hardware description for ZedBoard has to be created in order to perform inference of any DNN. The essential hardware block to be able to implement DNN onto the ZedBoard is the DPU (Deep Learning Procesing Unit), which is an IP block created by Xilinx. In order to be able to import the DPU block to your own project, you have to download the DPU target reference design (TRD) [here](https://www.xilinx.com/products/intellectual-property/dpu.html#overview).
+A project with a hardware description for ZedBoard has to be created in order to perform inference of any DNN. The essential hardware block to be able to implement DNN onto the ZedBoard is the DPU (Deep Learning Procesing Unit), which is an IP block created by Xilinx. In order to be able to import the DPU block to your own project, you have to download the DPU target reference design (TRD) from the Xilinx github repository [here](https://github.com/Xilinx/Vitis-AI).
 
-This TRD has been created by Xilinx to use the DPU with the ZCU102 board, which has a Zynq MPSoC UltraScale+ chip. Therefore, the only part that is needed from this `.zip` file we download is the DPU IP block, which is going to be impornted into the project created for ZedBoard.
+This TRD has been created by Xilinx to use the DPU with the ZCU102 board, which has a Zynq MPSoC UltraScale+ chip. Therefore, the only part that is needed from this file we download is the DPU IP block, which is going to be impornted into the project created for ZedBoard.
 
 
 
@@ -53,7 +53,17 @@ Open the Vivado tool. One easy way to do this in Ubuntu 18.04 LTS would be to op
 
 
 ### Import the DPU IP to the project
-Enter the directory where the DPU TRD `.zip` file was downloaded to and extract it at any location. Now, within the folder that was extracted, enter this directory.
+The easiest way to proceed would be to clone the Vitis-AI repository, [https://github.com/Xilinx/Vitis-AI](https://github.com/Xilinx/Vitis-AI). This folder should be cloned to 
+
+```
+cd /home/arroas/
+
+git clone https://github.com/Xilinx/Vitis-AI
+```
+
+
+
+Enter the directory where the DPU TRD file was downloaded to and extract it at any location. Now, within the folder that was extracted, enter this directory.
 
 ```
 cd zcu102-dpu-trd-2019-1-timer/pl/srcs/
@@ -122,6 +132,10 @@ The preset sets up several signals that will be needed later on in the DPU confi
 - **Deep Learning Procesing Unit (DPU)**.
 *É posible, en caso de que sexa necesario aumentar a dispoñibilidade de recursos do PL reducir o número de bloques DSP que implementa a DPU. Isto pódese levar a cabo seleccionando low dpu usage.*
 
+![alt text](https://raw.githubusercontent.com/UviDTE-FPSoC/vitis-dnn/master/ZedBoard_DNNs/GuideImages/DPU_Configuration1.png)
+![alt text](https://raw.githubusercontent.com/UviDTE-FPSoC/vitis-dnn/master/ZedBoard_DNNs/GuideImages/DPU_Configuration2.png)
+![alt text](https://raw.githubusercontent.com/UviDTE-FPSoC/vitis-dnn/master/ZedBoard_DNNs/GuideImages/DPU_Configuration3.png)
+
 - **Clock Wizard**. The clock wizard helps creating the circuit for the output clock frequencies needed in the design. *Indicar como fixxen o arreglo da coma ","*.
 
 - **Concat**. This block enables concatenation of different width signals into one bus.
@@ -140,7 +154,18 @@ Click on the `Address Editor` window in the project manager, and select auto-ass
 
 ![alt text](https://raw.githubusercontent.com/UviDTE-FPSoC/vitis-dnn/master/ZedBoard_DNNs/GuideImages/AddressAsignment.png)
 
+When the addresses have been asigned, it is important to take note of several information in order to, later on, configure the DPU drivers for the DPU. Therefore, check the following data in the Vivado Project:
 
+- **DPU Base Address**: The DPU base address can be checked out in the address editor. In this case, the offset address of the DPU is `0x4000_0000`, and the high address is `0x40FF_FFFF `.
+- **IRQ number**: This number is needed for the Linux device tree description. In order to obtain it, it is necessary to obtain the `GIC IRQ` number and substract 32 from it. The number can be checked in the following image.
+
+![alt text](https://raw.githubusercontent.com/UviDTE-FPSoC/vitis-dnn/master/ZedBoard_DNNs/GuideImages/GIC_IIRQ.png)
+
+In this image we see that `[91:84]` and `[68:61]` correspond to each of the 16 interrupt signals that can be attached to the PS. Therefore, as there is only one interrupt signal for the one core of the DPU, the corresponding signal would be `IRQ_F2P[0]`. It's GIC IRQ# would therefore be 61. This can be checked out in table 7-4 of the [UG585 Zynq-7000 SoC Technical Reference Manual, page 231](https://www.xilinx.com/support/documentation/user_guides/ug585-Zynq-7000-TRM.pdf), which is shown in at the top of the following image. A copy of the document has been uploaded to this repository.
+
+![alt text](https://raw.githubusercontent.com/UviDTE-FPSoC/vitis-dnn/master/ZedBoard_DNNs/GuideImages/GIC_IRQ_Zynq7000_Manual.png)
+
+The number the DPU interrupt is connected to would be `IRQ_F2P[0]`, which corresponds to *61 - 32 = 29*, `(0x1D)`. This is the number that is needed for the Linux device tree description.
 
 
 
@@ -180,6 +205,8 @@ Now, to finish the generation of the bitstream, follow the next steps.
 - Click the `Generate bitstream` option.
 
 ![alt text](https://raw.githubusercontent.com/UviDTE-FPSoC/vitis-dnn/master/ZedBoard_DNNs/GuideImages/RunImplementation.png)
+
+Three windows such as this one shall appear when executing the previous three steps.
 
 Once the bitstream has been generated, export the model to a `.xsa` format file.
 
