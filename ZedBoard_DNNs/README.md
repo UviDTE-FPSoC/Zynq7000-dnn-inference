@@ -11,6 +11,11 @@ In this guide it is preteded to explain the whole process to implement DNN infer
   - [Import and Interconnect all necessary IP blocks](#import-and-interconnect-all-necessary-ip-blocks)
   - [Assign register address for the design](#assign-register-address-for-the-design)
   - [Generate the bitstream](#generate-the-bitstream)
+- [PetaLinux Project Configuration](#petalinux-project-configuration)
+  - [Project Creation](#project-creation)
+  - [Import and configure DPU drivers](#import-and-configure-dpu-drivers)
+    - [DPU device tree definition](#dpu-device-tree-definition)
+    - [DPU driver installation](#dpu-driver-installation)
 
 
 
@@ -53,7 +58,7 @@ Open the Vivado tool. One easy way to do this in Ubuntu 18.04 LTS would be to op
 
 
 ### Import the DPU IP to the project
-The easiest way to proceed would be to clone the Vitis-AI repository, [https://github.com/Xilinx/Vitis-AI](https://github.com/Xilinx/Vitis-AI). This folder should be cloned to 
+The easiest way to proceed would be to clone the Vitis-AI repository, [https://github.com/Xilinx/Vitis-AI](https://github.com/Xilinx/Vitis-AI). This folder should be cloned to the `/home` directory, as the use of the Vitis-AI tools require certain permissions.
 
 ```
 cd /home/arroas/
@@ -61,12 +66,10 @@ cd /home/arroas/
 git clone https://github.com/Xilinx/Vitis-AI
 ```
 
-
-
-Enter the directory where the DPU TRD file was downloaded to and extract it at any location. Now, within the folder that was extracted, enter this directory.
+Now, within the cloned folder, enter this directory.
 
 ```
-cd zcu102-dpu-trd-2019-1-timer/pl/srcs/
+cd DPU-TRD/
 ```
 
 In this directory there is a folder named *dpu_ip*. This is the folder which contains the DPU IP block and which is necesary to import into the previously created project. It is not necessary, but it's recommended to copy this folder into the *ZedBoard_DPU_2019_2* folder project. Open up a terminal in the directory which is shown above and enter the following commands.
@@ -217,3 +220,160 @@ Once the bitstream has been generated, export the model to a `.xsa` format file.
 Make sure the `Include Bitstream` option has been checked.
 
 ![alt text](https://raw.githubusercontent.com/UviDTE-FPSoC/vitis-dnn/master/ZedBoard_DNNs/GuideImages/ExportHardware_XSA.png)
+
+
+
+
+
+PetaLinux Project Configuration
+-------------------------------
+
+
+
+### Project creation
+
+
+
+### Import and configure DPU drivers
+Once the PetaLinux project has been created, it is necessary to import the DPU drivers into the project. In order to do this, go back to the Vitis-Ai repository folder that was cloned when importing the DPU IP block into the Vivado project, [here](#import-dpu-ip-to-the-project). Once in that folder, enter the following directory.
+
+```
+cd DPU-TRD/prj/Vivado/dpu_petalinux_bsp/
+```
+
+In this directory there is one script that downloads the PetaLinux `.bsp` file for ZCU102. Download the file as follows, as it contains the DPU drivers that are needed for our project.
+
+```
+./download_bsp.sh
+```
+
+The `.bsp ` file will be downloaded to the current directory. Now it is time to untar the file.
+
+```
+$ tar xvzf xilinx-zcu102-v2019.2-final-4dpu-1.4.1.bsp
+```
+
+The file contains several folders that would be added to our project if the PetaLinux project was created using this file. This cannot be done though as the project wouldn't contain the needed drivers for ZedBoard. Therefore, it is necessary to copy the DPU drivers from this folder into our project's folder. Enter the following directory.
+
+```
+cd xilinx-zcu102-v2019.2-final-4dpu-1.4.1/project-spec/meta-user/recipes-ai/
+```
+
+The DPU folder that is found in this directory contains the DPU driver source. With a terminal opened in this directory, copy the `dpu` folder into the PetaLinux project.
+
+```
+$ cp dpu /home/arroas/PetaLinux_Projects/ZedBoard_DNN_2019.2/project-spec/meta-user/recipes-ai/
+```
+
+Once the DPU driver is in the project directory, there is several more steps to be made. The DPU kernel driver requires that the “version magic” match the kernel that we are building in
+the petalinux project. This is accomplished by modifying the LINUX_VERSION_EXTENSION of
+the kernel.
+
+- In the PetaLinux project directory, open he following file.
+
+```
+cd /project-spec/meta-user/recipes-kernel/linux/
+
+gedit linux-xlnx_%.bbappend
+```
+
+Once the file has been opened, insert the following line at the end of it.
+
+> LINUX_VERSION_EXTENSION = "+"
+
+Without this change, the DPU kernel driver (dpu.ko) will fail to be inserted at boot.
+
+
+
+#### DPU device tree definition
+In addition to loading the DPU kernel driver, it is also needed to define the details of the DPU
+instantiation in the device tree content.
+
+According to the [Zynq DPU v3.2 Product Guide, page 43](https://www.xilinx.com/support/documentation/ip_documentation/dpu/v3_2/pg338-dpu.pdf), the DPU device needs to be configured correctly under the PetaLinux device tree so that the DPU driver can work properly. Create a new node for the DPU and place it as the child node of “amba” in the device tree `system-user.dtsi`, which is located under `<plnx-proj-root>/project-spec/meta-user/recipes-bsp/device-tree/files/system-user.dtsi`.
+The parameters to the DPU and Softmax node are listed and described in the following table, which is *table 15* of the DPU product guide.
+
+![alt text](https://raw.githubusercontent.com/UviDTE-FPSoC/vitis-dnn/master/ZedBoard_DNNs/GuideImages/DPU_DeviceTreeConfig_Table1.png)
+
+![alt text](https://raw.githubusercontent.com/UviDTE-FPSoC/vitis-dnn/master/ZedBoard_DNNs/GuideImages/DPU_DeviceTreeConfig_Table2.png)
+
+The following node configuration stands for the DPU usage in the ZedBoard, with a Z-7020 chip. Below the example, there is the justification for each of the selected parameters.
+
+``` cpp
+/include/ "system-conf.dtsi"
+/ {
+&amba {
+        ....
+        dpu {
+            compatible = "xilinx,dpu";
+            base-addr = <0x40000000>;   //CHANGE THIS ACCORDING TO YOUR DESIGN
+            dpucore {
+                compatible = "xilinx,dpucore";
+                interrupt-parent = <&intc>;
+                interrupts = <0x0 0x1D 0x1>;
+                core-num = <0x1>;
+                };
+            };
+            ....
+};
+};
+```
+
+- *dpu->compatible*: Fixed value to "xilinx,dpu".
+- *dpu->base-addr*: DPU base register address assigned in the Vivado project. This address is the same as the offset address that was obtained in section [assign register address for the design](#assign-register-address-for-the-design). The value of the address would be `0x4000_0000`.
+- *dpucore->compatible*: Fixed value to "xilinx,dpucore".
+- *dpucore->interrupt-parent*: Point to interrupt control device, which in the case of a Zynq-7000 device should be `&intc`.
+- *dpucore->interrupts*: The `0x0` and the `0x1` are fixed values that do not have to be changed. The value that is placed in the middle indicates the Linux IRQ# obtained in section [assign register address for the design](#assign-register-address-for-the-design). The value  would be `0x1D`.
+- *dpucore->core-num*: The number of DPU cores. This parameter is configured in section [import and interconnect all necessary IP blocks](#import-and-interconnect-all-necessary-ip-blocks).
+
+The softmax options aren't included as this option is not compatible with Zynq-7000 family chips.
+
+
+
+#### DPU driver installation
+Once the previous configuration has been carried out, it is time to install the drivers in the PetaLinux project. The steps that are now indicated can be found in the `README.md` document within the DPU driver folder, at `<petalinux_project_directory>/project-spec/meta-user/recipes-ai/dpu/`.
+
+- To compile and install the module to the target file system copy on the host, execute the following lines in the petalinux project directory. The first line builds the kernel, and the second one builds the module command.
+
+```
+petalinux-build -c kernel
+
+petalinux-build -c dpu
+```
+
+- It is also needed to rebuild PetaLinux bootable images so that the images are updated with the updated target filesystem copy.
+
+```
+petalinux-build -x package
+```
+
+- The PetaLinux command to compile the module, install it to the target filesystem host copy and update the bootable images can be executed.
+
+```
+petalinux-build
+```
+
+- Finally, the module has to be added to the RootFS file system. First of all go to the directory `<petalinux_project_directory>/project-spec/meta-user/conf/` and add the following line to the file `user-rootfsconfig`.
+
+```
+CONFIG_dpu
+```
+
+Open now a terminal in the PetaLinux project directory, and add the module to the file system. Enter the following command, and access the folder indicated below.
+
+```
+petalinux-config -c rootfs
+```
+
+> modules
+
+![alt text](https://raw.githubusercontent.com/UviDTE-FPSoC/vitis-dnn/master/ZedBoard_DNNs/GuideImages/DPU_DriverRootFS1.png)
+
+To add the module press the "y" key and select the `<save>` option. Now exit the configuration screen.
+
+![alt text](https://raw.githubusercontent.com/UviDTE-FPSoC/vitis-dnn/master/ZedBoard_DNNs/GuideImages/DPU_DriverRootFS2.png)
+
+- Re-build the project
+
+```
+petalinux-build
+```
