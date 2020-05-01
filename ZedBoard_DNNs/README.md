@@ -13,15 +13,20 @@ In this guide it is preteded to explain the whole process to implement DNN infer
   - [Generate the bitstream](#generate-the-bitstream)
 - [PetaLinux Project Configuration](#petalinux-project-configuration)
   - [Project Creation](#project-creation)
-  - [Import and configure DPU drivers](#import-and-configure-dpu-drivers)
+  - [Import and configure DPU drivers and other packages](#import-and-configure-dpu-drivers-and-othr-packages)
+    - [DPU drivers](#dpu-drivers)
     - [DPU device tree definition](#dpu-device-tree-definition)
-    - [DPU driver installation](#dpu-driver-installation)
+    - [DPU driver individual installation](#dpu-driver-individual-installation)
+    - [Driver and packages combined installation](#driver-and-packages-combined-installation)
 
 
 
 
 Prerequisites
 -------------
+- Vivado Design Suite v2019.2. Installation guide [here](https://github.com/UviDTE-FPSoC/Zynq7000-examples/tree/master/SD-operating-system/PetaLinux/2019.2).
+- PetaLinux 2019.2. Make sure the Vivado Design Suite and PetaLinux are the same version. The previous guide shows how to install petalinux.
+
 Which Ubuntu I'm using, all tools of Xilinx I'm using ... .
 In the Vivado installation, import the board files.
 
@@ -227,14 +232,20 @@ Make sure the `Include Bitstream` option has been checked.
 
 PetaLinux Project Configuration
 -------------------------------
+PetaLinux is the woking Operating System chosen for this task. The reason is mainly that most of Xilinx documentation an tutorials use this operating system, which will show to be very helpful later on. Installing PetaLinux in the host requires a series of steps that are clearly explained [here](https://github.com/UviDTE-FPSoC/Zynq7000-examples/tree/master/SD-operating-system/PetaLinux/2019.2).
+
+In order to configure PetaLinux perform inference of DNNs, we have to configure the OS in a certain way. First of all, from the previous [guide](https://github.com/UviDTE-FPSoC/Zynq7000-examples/tree/master/SD-operating-system/PetaLinux/2019.2), make sure to complete all the steps in the PetaLinux Configuration section. This section will guide you through the process of setting up your host machine to work with PetaLinux, as well as the creation and configuration of a PetaLinux project for ZedBoard. The creation of the project is done with the Xilinx ZedBoard .bsp file, which includes the ZedBoard drivers needed by PetaLinux.
+
+If you are able to boot PetaLinux on ZedBoard, as explained in the guide, you can continue with the following specific configuration steps.
 
 
 
-### Project creation
+### Import and configure DPU drivers and other packages
+There is two ways of adding drivers and packages. This task can be done with each driver or package individually, or using an adtional script that will make it easier to add or remove drivers and packages. In this section both processes are explained, as they are very similar. First of all, the DPU drivers will be added individually, and later on we'll add a script that includes several needed packages as well as the DPU.
 
 
 
-### Import and configure DPU drivers
+#### DPU drivers
 Once the PetaLinux project has been created, it is necessary to import the DPU drivers into the project. In order to do this, go back to the Vitis-Ai repository folder that was cloned when importing the DPU IP block into the Vivado project, [here](#import-dpu-ip-to-the-project). Once in that folder, enter the following directory.
 
 ```
@@ -329,7 +340,7 @@ The softmax options aren't included as this option is not compatible with Zynq-7
 
 
 
-#### DPU driver installation
+#### DPU driver individual installation
 Once the previous configuration has been carried out, it is time to install the drivers in the PetaLinux project. The steps that are now indicated can be found in the `README.md` document within the DPU driver folder, at `<petalinux_project_directory>/project-spec/meta-user/recipes-ai/dpu/`.
 
 - To compile and install the module to the target file system copy on the host, execute the following lines in the petalinux project directory. The first line builds the kernel, and the second one builds the module command.
@@ -352,7 +363,7 @@ petalinux-build -x package
 petalinux-build
 ```
 
-- Finally, the module has to be added to the RootFS file system. First of all go to the directory `<petalinux_project_directory>/project-spec/meta-user/conf/` and add the following line to the file `user-rootfsconfig`.
+- Finally, the module has to be added to the RootFS file system. First of all go to the directory `<petalinux_project_directory>/project-spec/meta-user/conf/` and add the following line to the file `user-rootfsconfig`. This process is explained in the [Petalinux Tools Documentation. Reference Guide. Page 83](https://www.xilinx.com/support/documentation/sw_manuals/xilinx2019_2/ug1144-petalinux-tools-reference-guide.pdf) in the *Add existent recipe into RootFS*.
 
 ```
 CONFIG_dpu
@@ -364,13 +375,202 @@ Open now a terminal in the PetaLinux project directory, and add the module to th
 petalinux-config -c rootfs
 ```
 
-> modules
+> modules > dpu
 
 ![alt text](https://raw.githubusercontent.com/UviDTE-FPSoC/vitis-dnn/master/ZedBoard_DNNs/GuideImages/DPU_DriverRootFS1.png)
 
 To add the module press the "y" key and select the `<save>` option. Now exit the configuration screen.
 
 ![alt text](https://raw.githubusercontent.com/UviDTE-FPSoC/vitis-dnn/master/ZedBoard_DNNs/GuideImages/DPU_DriverRootFS2.png)
+
+- Re-build the project
+
+```
+petalinux-build
+```
+
+#### Driver and packages combined installation
+If there is more than one driver or aditional package that you want to include to the PetaLinux configuration, this method is the most comfortable one. The idea would be to use a script where you can add all the drivers and packages not included in the rootfs of PetaLinux so that you don't have to compile them individually.
+
+The best example can be found in the DPU-TRD `.bsp` file that was used to obtain the DPU drivers. To donload and extract this file, check the section of this guide [DPU drivers](#dpu-drivers). This file, basically, is a pre-configured PetaLinux project for ZCU102 where Xilinx has done all the necessary configuration in order to perform inference with this board. Most of this configuration should be done as well in our ZedBoard project, to ensure the DNN models can be correctly ran.
+
+All the packages that are included in the PetaLinux project can be found in the directory `/<proj_or_bsp_directory>/project-spec/configs/`. The file named rootfs_config contains all the packages that can be included in your configuration, and the ones that are actually included are finished with a `=y`. In the folder where you extracted the `.bsp` file, you can also enter this file, and check the configuration that was made in order to run the DPU with ZCU102. It wouldn't hurt to make sure your ZedBoard project has a similar configuration. The easiest way to change this configuration would be with a console interface you can acces by openning a terminal in your project directory and typing in `petalinux-config -c rootfs`. This is the same we did previously to individually install the DPU drivers, although these drivers are not included by default to PetaLinux, so you have to copy them into the project manually.
+
+In the DPU-TRD `.bsp` file, Xilinx didn't only add the DPU drivers as the only external package, but they added more. The file where all the external packages are included is found in the `/<bso_directory>/project-spec/meta-user/recipes-core/packagegroups/` under the name of `packagegroup-petalinux-xlnx-ai.bb`. The content of this file is now shown.
+
+```
+DESCRIPTION = "Xlnx AI Packages"
+
+inherit packagegroup
+
+XLNX_AI_LIBS = " \
+	glog \
+	gtest \
+	gtest-staticdev \
+	json-c \
+	json-c-dev \
+	libeigen-dev \
+	libcanberra-gtk3 \
+	libdrm \
+	libdrm-kms \
+	libdrm-tests \
+	libx11-locale \
+	opencv \
+	opencv-dev \
+	protobuf \
+	protobuf-dev \
+	protobuf-c \
+	python3-pip \
+"
+
+XLNX_AI_UTILS = " \
+	apt \
+	auto-resize \
+	cmake \
+	dpkg \
+	i2c-tools \
+	packagegroup-petalinux-v4lutils \
+	xrandr \
+"
+
+XLNX_AI_APP = " \
+	dhcp-client \
+	glmark2 \
+	xauth \
+	nfs-utils \
+	openssh-sftp-server \
+"
+
+XLNX_AI_PACKAGES = " \
+	ai-camera \
+	base-files \
+	dpcma \
+	dpu \
+	dpuclk \
+	resolvconf \
+	screen-flicker \
+	tzdata \
+	ntp \
+	packagegroup-petalinux-weston \
+	xfce4-terminal \
+	${XLNX_AI_LIBS} \
+	${XLNX_AI_UTILS} \
+	${XLNX_AI_APP} \
+"
+
+RDEPENDS_${PN} = "${XLNX_AI_PACKAGES}"
+```
+
+In the libs tab we can find the libraries that the target could need when running ingerrence. The utils tab includes several command libraries which can be useful. The one that is needed for sure would be `dpkg`, as to install the `vitis-ai-runtime` package for any device, you need to install `.deb` files, for which you need to execute `dpkg`.
+
+In the packages tab, the DPU is included. Therefore, this script can be copied, avoiding having to create one from scrach. Go to `/<ZedBoard_proj_directory>/project-spec/meta-user/` and create the directory `/recipes-core/packagegroups/`, copying the file `packagegroup-petalinux-xlnx-ai.bb` to it. You can now include or remove the packages that you want. The script we end up with is the follwoing.
+
+```
+DESCRIPTION = "Xlnx AI Packages"
+
+inherit packagegroup
+
+XLNX_AI_LIBS = " \
+	glog \
+	gtest \
+	gtest-staticdev \
+	json-c \
+	json-c-dev \
+	libeigen-dev \
+	libcanberra-gtk3 \
+	libdrm \
+	libdrm-kms \
+	libdrm-tests \
+	libx11-locale \
+	opencv \
+	opencv-dev \
+	protobuf \
+	protobuf-dev \
+	protobuf-c \
+	python3-pip \
+"
+
+XLNX_AI_UTILS = " \
+	apt \
+	cmake \
+	dpkg \
+	i2c-tools \
+	packagegroup-petalinux-v4lutils \
+	xrandr \
+"
+
+XLNX_AI_APP = " \
+	dhcp-client \
+	glmark2 \
+	xauth \
+	nfs-utils \
+	openssh-sftp-server \
+"
+
+XLNX_AI_PACKAGES = " \
+	dpu \
+	${XLNX_AI_LIBS} \
+	${XLNX_AI_UTILS} \
+	${XLNX_AI_APP} \
+"
+
+RDEPENDS_${PN} = "${XLNX_AI_PACKAGES}"
+```
+
+If you haven't included the DPU drivers yet, go back to sections [DPU drivers](#dpu-drivers) and
+[DPU device tree definition](#dpu-device-tree-definition). In the directory the DPU drivers are, `/<bsp_directory>/project-spec/meta-user/recipes-ai/`, you can find most of the other packages that we removed from the `XILINX_AI_PACKAGES` section in the file `packagegroup-petalinux-xlnx-ai.bb`.
+
+The installation of this packages is now analog to the DPU drivers individual installation.
+
+- The packages have to be added to the RootFS file system. First of all go to the directory `<petalinux_project_directory>/project-spec/meta-user/conf/` and add the following line to the file `user-rootfsconfig`. This process is explained in the [Petalinux Tools Documentation. Reference Guide. Page 83](https://www.xilinx.com/support/documentation/sw_manuals/xilinx2019_2/ug1144-petalinux-tools-reference-guide.pdf) in the *Add existent recipe into RootFS*.
+
+```
+CONFIG_packagegroup-petalinux-xlnx-ai
+```
+
+- To compile and install the modules to the target file system copy on the host, execute the following lines in the petalinux project directory. The first line builds the kernel, and the second one builds the modules command.
+
+```
+petalinux-build -c kernel
+
+petalinux-build -c packagegroup-petalinux-xlnx-ai
+```
+
+- It is also needed to rebuild PetaLinux bootable images so that the images are updated with the updated target filesystem copy.
+
+```
+petalinux-build -x package
+```
+
+- The PetaLinux command to compile the module, install it to the target filesystem host copy and update the bootable images can be executed.
+
+```
+petalinux-build
+```
+
+Open now a terminal in the PetaLinux project directory, and add the module to the file system. Enter the following command, and access the folder indicated below.
+
+```
+petalinux-config -c rootfs
+```
+
+> user packages > packagegroup-petalinux-xlnx-ai
+
+![alt text](https://raw.githubusercontent.com/UviDTE-FPSoC/vitis-dnn/master/ZedBoard_DNNs/GuideImages/DPU_DriverRootFS3.png)
+
+To add the module press the "y" key and select the `<save>` option. Now exit the configuration screen.
+
+![alt text](https://raw.githubusercontent.com/UviDTE-FPSoC/vitis-dnn/master/ZedBoard_DNNs/GuideImages/DPU_DriverRootFS4.png)
+
+The environment is also going to need a series of aditional libraries to be able to execute and install all the commands and packages neccesary to work with Vitis-AI. The libraries that would be neccesary are the following, which can be accesed with the previous interface as well.
+
+> Filesystem > base > tar > tar
+>
+> Filesystem > misc > python3 > python3
+>
+> Petalinux Package Groups > packagegroup-petalinux-pyton-modules > packagegroup-petalinux-pyton-modules
+
+This last python package is important in order to run and execute pip3 commands, both neccesary in the Vitis-AI runtime and the DNNDK.
 
 - Re-build the project
 
