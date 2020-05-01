@@ -285,6 +285,12 @@ You can also introduce this line of code into the `.bachrc` file at `/home/arroa
 
 ![alt text](https://raw.githubusercontent.com/UviDTE-FPSoC/vitis-dnn/master/GuideImages/petalinux_sdk_sourcing.png)
 
+> NOTE: In my particular case I have noticed that each time I open a new terminal, I have to source the previous line. I believe this is happening because the source command before won't work properly if the following line is not executed previously.
+
+```
+unset LD_LIBRARY_PATH
+```
+
 Now, you have to download the [vitis_ai_2019.2-r1.1.0.tar.gz](https://raw.githubusercontent.com/UviDTE-FPSoC/vitis-dnn/master/GuideImages/petalinux_sdk_sourcing.png) and install it to the PetaLinux system.
 
 ```
@@ -334,17 +340,7 @@ If the compilation process does not report any error and the executable file res
 
 
 #### Prepare the board
-
-First of all you need to install an operating system in the board. In this case we are using a ZedBoard with PetaLinux 2019.2 installed in an SD card. You can find a tutorial of how to prepare the SD card OS [here](https://github.com/UviDTE-FPSoC/Zynq7000-examples/tree/master/SD-operating-system/PetaLinux/2019.2).
-The environment is also going to need a series of different libraries to be able to execute and install all the commands and packages neccesary to work with Vitis-AI. In the previous link there is an example of how to add a library to PetaLinux. The libraries that would be neccesary are the following:
-
-> Filesystem > base > tar > tar
->
-> Filesystem > misc > python3 > python3
->
-> Petalinux Package Groups > packagegroup-petalinux-pyton-modules > packagegroup-petalinux-pyton-modules
-
-This last python package is important in order to run and execute pip3 commands, both neccesary in the Vitis-AI runtime and the DNNDK.
+First of all you need to install an operating system in the board. In this case we are using a ZedBoard with PetaLinux 2019.2 installed in an SD card. You can find a tutorial of how to prepare the SD card OS [here](https://github.com/UviDTE-FPSoC/vitis-dnn/blob/master/ZedBoard_DNNs/README.md).
 
 Once the environment is setup, it is neccessary to install [vitis_ai_runtime_library_r1.1](https://github.com/UviDTE-FPSoC/Zynq7000-examples/tree/master/SD-operating-system/PetaLinux/2019.2).
 
@@ -363,18 +359,20 @@ scp <path_to_untar'd_runtime_library>/unilog/aarch64/libunilog-1.1.0-Linux-build
 
 scp <path_to_untar'd_runtime_library>/XIR/aarch64/libxir-1.1.0-Linux-build46.deb root@IP_OF_BOARD:~/
 
-scp <path_to_untar'd_runtime_library>1/VART/aarch64/libvart-1.1.0-Linux-build46.deb root@IP_OF_BOARD:~/
+scp <path_to_untar'd_runtime_library>1/VART/aarch64/libvart-1.1.0-Linux-build48.deb root@IP_OF_BOARD:~/
 ```
 
 As an example, in our case the exact commands we introduce are the following.
 
 ```
-sudo scp /home/arroas/Vitis-AI/vitis-ai-runtime-1.1.0/unilog/aarch64/libunilog-1.1.0-Linux-build46.deb root@192.168.0.21:~/
+sudo scp /home/arroas/Vitis-AI/vitis-ai-runtime-1.1.2/unilog/aarch64/libunilog-1.1.0-Linux-build46.deb root@192.168.0.21:~/
 
-sudo scp /home/arroas/Vitis-AI/vitis-ai-runtime-1.1.0/XIR/aarch64/libxir-1.1.0-Linux-build46.deb root@192.168.0.21:~/
+sudo scp /home/arroas/Vitis-AI/vitis-ai-runtime-1.1.2/XIR/aarch64/libxir-1.1.0-Linux-build46.deb root@192.168.0.21:~/
 
-sudo scp /home/arroas/Vitis-AI/vitis-ai-runtime-1.1.0/VART/aarch64/libvart-1.1.0-Linux-build46.deb root@192.168.0.21:~/
+sudo scp /home/arroas/Vitis-AI/vitis-ai-runtime-1.1.2/VART/aarch64/libvart-1.1.0-Linux-build46.deb root@192.168.0.21:~/
 ```
+
+If it is needed for any reason, it is possible to check the content of the `.deb` files by executing `ar x <file_you_want_to_open>.deb`.
 
 These commands will copy the files to your board's `/home/root` directory.
 
@@ -383,7 +381,7 @@ Now open the directory you installed glog-0.4.0 and copy the .tar.gz file to the
 ```
 cd /home/arroas/PetaLinux/glog-0.4.0/build_for_petalinux
 
-sudo scp glog-0.4.0-Linux.tar.gz root@192.168.0.1:~/
+sudo scp glog-0.4.0-Linux.tar.gz root@192.168.0.21:~/
 ```
 
 To finish, access the board using SSH or an UART connection. Through a console window, update the glog to version 0.4.0.
