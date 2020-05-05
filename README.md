@@ -431,8 +431,12 @@ tar -xzvf vitis-ai_v1.1_dnndk.tar.gz
 
 cd vitis-ai_v1.1_dnndk
 
+source /home/arroas/PetaLinux/petalinux_sdk/environment-setup-aarch64-xilinx-linux
+
 sudo ./install.sh $SDKTARGETSYSROOT
 ```
+
+> If you have any trouble running the source command, run `unset LD_LIBRARY_PATH` before.
 
 To make sure the software was correctly installed, cross-compile the following examples. First, enter the following directory.
 
@@ -456,10 +460,10 @@ Now, compile an example with one of the commands below.
 #### Install on the boards
 
 Copy the [package](https://www.xilinx.com/bin/public/openDownload?filename=vitis-ai_v1.1_dnndk.tar.gz) you previously  installed in the computer to your board using a SSH connection. You can check out how to establish this type of connection [here](https://github.com/UviDTE-FPSoC/Zynq7000-examples/tree/master/SD-operating-system/PetaLinux).
-To copy the *.tar.gz* file to the board's `/home/root/` directory, use the following command.
+To copy the *.tar.gz* file to the board's `/home/root/` directory, use the following command. In this case the file is copyied to the folder `vitis-ai-dnndk` within the `/home/root/` directory of the board.
 
 ```
-sudo scp /home/arroas/PetaLinux/petalinux_sdk/sysroots/vitis-ai_v1.1_dnndk.tar.gz root@192.168.0.21:~/vitis-ai_dnndk
+sudo scp /home/arroas/PetaLinux/petalinux_sdk/sysroots/vitis-ai_v1.1_dnndk.tar.gz root@192.168.0.21:~/vitis-ai-dnndk
 ```
 
 Once the file is in the board, from an UART or SSH connection, execute the following commands.
