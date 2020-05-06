@@ -5,6 +5,7 @@ In this guide it is preteded to explain the whole process to implement DNN infer
 ### Table of Contents
 
 - [Prerequisites](#prereqisites)
+- [Installation of Diligent Board Files](#installation-of-digilen-board-files)
 - [Hardware description project](#hardware-description-project)
   - [Create a Vivado Design Suite Project](#create-a-vivado-design-suite-project)
   - [Import DPU IP to the project](#import-dpu-ip-to-the-project)
@@ -31,6 +32,24 @@ Which Ubuntu I'm using, all tools of Xilinx I'm using ... .
 In the Vivado installation, import the board files.
 
 
+
+
+
+Installation of Digilent Board Files
+------------------------------------
+In this section we will focus in the installation of the Digilent Board Files for version 2019.2. The guide provided by Diligent [here](https://reference.digilentinc.com/vivado/installing-vivado/v2019.2) is followed.
+
+Download the [archive](https://github.com/Digilent/vivado-boards/archive/master.zip?_ga=2.156349435.1935155676.1585674832-1676906505.1585674832) with the Vivado board files.
+
+Extract this file at any directory and enter the folder within this folder named `/new/board-files/`. Copy all the files that you find in this directory.
+
+Finally, go to the directory you have installed Vivado SDk at, enter the following folswe and copy the previous files to this folder:
+
+```
+cd <vivado_installation_directory>/Vivado/2019.2/data/boards/board_files/
+```
+
+Vivado has now access to diligent board files, in which ZedBoard is included.
 
 
 
@@ -179,7 +198,75 @@ The number the DPU interrupt is connected to would be `IRQ_F2P[0]`, which corres
 
 ### Generate the bitstream
 
-First of all, it is necessary to create a HDL wrapper.
+First of all, it is necessary to validate the IP design.
+
+- Right click on the `Block Design` workspace and select the option `Validate Project`.
+
+If you are using the keyboard layout `es_ES.ud8`, you might get the following error printd in the console.
+
+> Tcl error in validate procedure while setting value '250.000' on parameter 'CLKOUT1_REQUESTED_OUT_FREQ'. unexpected "," outside function argument list
+in expression "1000.000 / 2,155".
+>
+> Tcl error in validate procedure while setting value '450.000' on parameter 'CLKOUT2_REQUESTED_OUT_FREQ'. unexpected "," outside function argument list
+in expression "1000.000 / 2,155".
+
+This error is being triggered if your keyboard layout has established the `,` as a decimal separator, rather than the `.`. The problem can be solved by changing this configuration in the `es_ES.ud8` file. Now, open the file:
+
+```
+sudo atom /usr/share/i18n/locales/es_ES
+```
+
+Find the following section of the script, between *LC_MONETARY* and *END LC_MONETARY*, change `mon_decimal_point` to `.` and `mon_thousands_sep` to `,`. This changes the separators for currency. Now, repeat the operation between *LC_NUMERIC* and *END LC_NUMERIC*, changing `decimal_point` to `.` and `thousand_sep` to `,`. These section of your file should end up looking as follows.
+
+```
+....
+
+LC_MONETARY
+int_curr_symbol      "EUR "
+currency_symbol      "<U20AC>"
+mon_decimal_point    "."
+mon_thousands_sep    ","
+mon_grouping         3;3
+positive_sign        ""
+negative_sign        "-"
+int_frac_digits      2
+frac_digits          2
+p_cs_precedes        0
+p_sep_by_space       1
+n_cs_precedes        0
+n_sep_by_space       1
+p_sign_posn          1
+n_sign_posn          1
+END LC_MONETARY
+
+LC_NUMERIC
+decimal_point        "."
+thousands_sep        ","
+grouping             3;3
+END LC_NUMERIC
+
+....
+```
+
+Finally, actuallize the modification in the system by executing this command in the terminal.
+
+```
+sudo dpkg-reconfigure locales
+```
+
+![alt text](https://raw.githubusercontent.com/UviDTE-FPSoC/vitis-dnn/master/ZedBoard_DNNs/GuideImages/ConfiguringLocales.png)
+
+- Press `enter`.
+
+![alt text](https://raw.githubusercontent.com/UviDTE-FPSoC/vitis-dnn/master/ZedBoard_DNNs/GuideImages/ConfiguringLocales2.png)
+
+- Press `enter`.
+
+![alt text](https://raw.githubusercontent.com/UviDTE-FPSoC/vitis-dnn/master/ZedBoard_DNNs/GuideImages/ConfiguringLocales3.png)
+
+- Press `enter`.
+
+Now we have to create the HDL wrapper.
 
 - Click the sources tab under the project manager.
 - Select the `Hierarchy` tab at the bottom.
