@@ -1,4 +1,4 @@
-This document intends to be a guide to be able use the Xilinx Edge AI tools with a ZedBoard SoC device. Most of the documentation, tutorials and examples provided by Xilinx in order to use their AI libraries and tools have been created for boards with Zynq MPSoCs Ultrascale+ chips and others. Never the less, the hardware IP block created by Xilinx to run DNN inference on their boards, the Deep Learning Procesing Unit (DPU), supports its implementation on Zynq-7000 family chips. ZedBoard mouns a Z-7020 chip, which is compatible with this hardware description block.
+This document intends to be a guide which shows the process to use the Xilinx Edge AI tools with a ZedBoard SoC device. Most of the documentation, tutorials and examples provided by Xilinx in order to use their AI libraries and tools have been created for boards with Zynq MPSoCs Ultrascale+ chips and others. Never the less, the hardware IP block created by Xilinx to run DNN inference on their boards, the Deep Learning Procesing Unit (DPU), supports its implementation on Zynq-7000 family chips. ZedBoard mouns a Z-7020 chip, which is compatible with this hardware description block.
 
 In this guide it is preteded to explain the whole process to implement DNN inference on Zedboard. Software tools that have to be installed, creation of the hardware description project, configuration of an Operating System project to use this harware description with the ZedBoard, installation of Edge AI compilation tools and inference of several DNN models such as mobilenetv1, mobilenetv2 and inceptionv1.
 
@@ -12,13 +12,16 @@ In this guide it is preteded to explain the whole process to implement DNN infer
   - [Import and Interconnect all necessary IP blocks](#import-and-interconnect-all-necessary-ip-blocks)
   - [Assign register address for the design](#assign-register-address-for-the-design)
   - [Generate the bitstream](#generate-the-bitstream)
-- [PetaLinux Project Configuration](#petalinux-project-configuration)
+- [PetaLinux Project Installation and Configuration](#petalinux-project-installation-and-configuration)
   - [Project Creation](#project-creation)
   - [Import and configure DPU drivers and other packages](#import-and-configure-dpu-drivers-and-othr-packages)
     - [DPU drivers](#dpu-drivers)
     - [DPU device tree definition](#dpu-device-tree-definition)
     - [DPU driver individual installation](#dpu-driver-individual-installation)
     - [Driver and packages combined installation](#driver-and-packages-combined-installation)
+- [Deep Neural Network Development Kit](#deep-neural-network-development-kit)
+  - [Donwload and Installation of the DNNDK](#download-and-installation-of-the-dnndk)
+    - [Setting up the host](#setting-up-the-host)
 
 
 
@@ -317,7 +320,7 @@ Make sure the `Include Bitstream` option has been checked.
 
 
 
-PetaLinux Project Configuration
+PetaLinux Project Installation and Configuration
 -------------------------------
 PetaLinux is the woking Operating System chosen for this task. The reason is mainly that most of Xilinx documentation an tutorials use this operating system, which will show to be very helpful later on. Installing PetaLinux in the host requires a series of steps that are clearly explained [here](https://github.com/UviDTE-FPSoC/Zynq7000-examples/tree/master/SD-operating-system/PetaLinux/2019.2).
 
@@ -664,3 +667,72 @@ This last python package is important in order to run and execute pip3 commands,
 ```
 petalinux-build
 ```
+
+
+
+Deep Neural Network Development Kit
+-----------------------------------
+The Deep Neural Network Development Kit (DNNDK) is a full-stack deep learning SDK for the Deep-
+learning Processor Unit (DPU). It provides a unified solution for deep neural network inference
+applications by providing pruning, quantization, compilation, optimization, and run time support. The pruning tool can only be utilized with the use of a lincense.
+
+There is a newer tool from Xilinx to work with Deep Neural Network inference on edge devices, which is [Vitis-AI(https://github.com/Xilinx/Vitis-AI)]. The problem with this tool is that the run time support has only been compiled for devices that mount a processor with a armv8-A architecture, that can execute 64-bit instructions, while ZedBoard has a Z-7020 chip, which has a Cortex-9 processor that has an architecture armv7-A, and can only execute 32-bit instructions.
+
+This means that to work with ZedBoard the only option is using the latest release of the DNNDK, version 3.1. The installation of this tool and execution of the first examples is carried out following the [DNNDK User Guide](https://www.xilinx.com/support/documentation/sw_manuals/ai_inference/v1_6/ug1327-dnndk-user-guide.pdf).
+
+
+
+### Donwnload and Installation of the DNNDK
+The latest version of the DNNDK can be downloaded [here](https://www.xilinx.com/products/design-tools/ai-inference/ai-developer-hub.html#edge), under `Edge AI Tools`. To download the release that corresponds to the v1.6 documentation you can just click [here](https://login.xilinx.com/app/xilinxinc_f5awsprod_1/exknv8ms950lm0Ldh0x7/sso/saml). The download requires to log into you Xilinx account, but its totally free. Once the package is downloaded, we create the following directory and extract the package.
+
+```
+cd /home/arroas/Xilinx-AI_Tools
+
+tar xvzf xilinx_dnndk_v3.1_190809.tar.gz
+```
+
+
+
+#### Setting up the host
+The “host_x86” folder contains the Deep Compression Tool (DECENT) and Deep Neural Network
+Compiler (DNNC), the DDump and the DLet host tools, which allow neural networks to be optimized and accelerated on the DPU inference engine.
+
+This release of the DNNDK enables the use of deep neural network models both from `Caffe` and `TensorFlow` framework.
+
+The Caffe models need the installation of a series of dependent libraries.
+
+```
+sudo apt-get install -y --force-yes build-essential autoconf libtool libopenblas-dev libgflags-dev libgoogle-glog-dev libopencv-dev protobuf-compiler libleveldb-dev liblmdb-dev libhdf5-dev libsnappy-dev libboost-all-dev libssl-dev
+```
+
+Regarding TensorFlow, we create a conda environment to make sure it is not affected by future installations of TensorFlow packages. In this case, the TensorFlow version we are going to install is the CPU version with python 3.6, as we couldn't correctly create the environment fo the GPU version, which has faster execution time when running the decent tools.
+
+```
+$ cd /<dnndk_v3.1_extraction_directory>
+
+$ conda create -n decent pip python=3.6
+
+$ source activate decent
+
+(decent)$ pip install /home/arroas/Xilinx-AI_Tools/xilinx_dnndk_v3.1/host_x86/decent-tf/ubuntu18.04/tensorflow-1.12.0-cp36-cp36m-linux_x86_64.whl
+
+(decent)$ pip install numpy opencv-python sklearn scipy progressbar2
+```
+
+To check if the decent environment has been correctly created, run the following command.
+
+```
+(decent)$ decent_q --help
+```
+
+If the libraries and the conda environment have been added, install the DNNDK host tools.
+
+```
+cd /<dnndk_v3.1_extraction_directory>/host_x86
+
+sudo ./install.sh
+```
+
+
+
+#### Setting up the ZedBoard
