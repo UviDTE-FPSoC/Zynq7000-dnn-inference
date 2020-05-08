@@ -19,9 +19,11 @@ In this guide it is preteded to explain the whole process to implement DNN infer
     - [DPU device tree definition](#dpu-device-tree-definition)
     - [DPU driver individual installation](#dpu-driver-individual-installation)
     - [Driver and packages combined installation](#driver-and-packages-combined-installation)
+    - [Add libraries to RootFS](#add-libraries-to-rootfs)
 - [Deep Neural Network Development Kit](#deep-neural-network-development-kit)
   - [Donwload and Installation of the DNNDK](#download-and-installation-of-the-dnndk)
     - [Setting up the host](#setting-up-the-host)
+    - [Setting up the ZedBoard](#setting-up-the-zedboard)
 
 
 
@@ -402,20 +404,19 @@ The following node configuration stands for the DPU usage in the ZedBoard, with 
 ``` cpp
 /include/ "system-conf.dtsi"
 / {
-&amba {
-        ....
-        dpu {
-            compatible = "xilinx,dpu";
-            base-addr = <0x40000000>;   //CHANGE THIS ACCORDING TO YOUR DESIGN
-            dpucore {
-                compatible = "xilinx,dpucore";
-                interrupt-parent = <&intc>;
-                interrupts = <0x0 0x1D 0x1>;
-                core-num = <0x1>;
-                };
-            };
-            ....
 };
+
+&amba {
+	dpu {
+		compatible = "xilinx,dpu";
+		base-addr = <0x40000000>;   //CHANGE THIS ACCORDING TO YOUR DESIGN
+		dpucore {
+		        compatible = "xilinx,dpucore";
+		        interrupt-parent = <&intc>;
+		        interrupts = <0x0 0x1D 0x1>;
+		        core-num = <0x1>;
+		};
+	};
 };
 ```
 
@@ -652,15 +653,68 @@ To add the module press the "y" key and select the `<save>` option. Now exit the
 
 ![alt text](https://raw.githubusercontent.com/UviDTE-FPSoC/vitis-dnn/master/ZedBoard_DNNs/GuideImages/DPU_DriverRootFS4.png)
 
-The environment is also going to need a series of aditional libraries to be able to execute and install all the commands and packages neccesary to work with Vitis-AI. The libraries that would be neccesary are the following, which can be accesed with the previous interface as well.
+- Re-build the project
+
+```
+petalinux-build
+```
+
+
+
+#### Add libraries to RootFS
+The installation and execution of the DNNDK v3.1 package and the DPU need to have certain libraries installed in the OS. Add the following list of libraries:
+
+> - Filesystem > base > tar > tar
+>
+> - Filesystem > console > utils > grep > grep
+>
+> - Filesystem > console > utils > pkgconfig > pkgconfig
+>
+> - Filesystem > libs > opencv > opencv
+>
+> - Filesystem > libs > opencv > opencv-dev
+>
+> - Filesystem > libs > opencv > opencv-apps
+>
+> - Filesystem > libs > opencv > opencv-samples
+>
+> - Filesystem > libs > opencv > opencv-dbg
+>
+> - Filesystem > misc > python3 > python3
+>
+> - Filesystem > devel > make > make
+>
+> - Petalinux Package Groups > packagegroup-petalinux-pyton-modules > packagegroup-petalinux-pyton-modules
+>
+> - Petalinux Package Groups > packagegroup-petalinux-opencv > packagegroup-petalinux-opencv
+
+- To add this libraries, follow this procedure:
+
+```
+petalinux-config -c rootfs
+```
 
 > Filesystem > base > tar > tar
->
-> Filesystem > misc > python3 > python3
->
-> Petalinux Package Groups > packagegroup-petalinux-pyton-modules > packagegroup-petalinux-pyton-modules
 
-This last python package is important in order to run and execute pip3 commands, both neccesary in the Vitis-AI runtime and the DNNDK.
+![alt text](https://raw.githubusercontent.com/UviDTE-FPSoC/vitis-dnn/master/ZedBoard_DNNs/GuideImages/DPU_DriverRootFS5.png)
+
+- Press `enter`.
+
+![alt text](https://raw.githubusercontent.com/UviDTE-FPSoC/vitis-dnn/master/ZedBoard_DNNs/GuideImages/DPU_DriverRootFS6.png)
+
+- Press `enter`.
+
+![alt text](https://raw.githubusercontent.com/UviDTE-FPSoC/vitis-dnn/master/ZedBoard_DNNs/GuideImages/DPU_DriverRootFS.png)
+
+- Press `enter`.
+
+![alt text](https://raw.githubusercontent.com/UviDTE-FPSoC/vitis-dnn/master/ZedBoard_DNNs/GuideImages/DPU_DriverRootFS8.png)
+
+- To add the module press the "y" key and select the `<save>` option. Now exit the configuration screen.
+
+![alt text](https://raw.githubusercontent.com/UviDTE-FPSoC/vitis-dnn/master/ZedBoard_DNNs/GuideImages/DPU_DriverRootFS9.png)
+
+The rest of the libraries would be added in an analog manner.
 
 - Re-build the project
 
@@ -736,3 +790,11 @@ sudo ./install.sh
 
 
 #### Setting up the ZedBoard
+
+It is necessary to copy the ZedBoard package into the board. Execute the following commands with a SSH connection created with the ZedBoard. Check this [guide]() to create this type of connection.
+
+```
+cd /<xilinx-dnndk-v3.1_directory>
+
+sudo scp -r ./ZedBoard root@192.168.0.21:~/xilinx-dnndk-v3.1
+```
