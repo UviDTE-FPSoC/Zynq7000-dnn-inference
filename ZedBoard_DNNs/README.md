@@ -798,3 +798,13 @@ cd /<xilinx-dnndk-v3.1_directory>
 
 sudo scp -r ./ZedBoard root@192.168.0.21:~/xilinx-dnndk-v3.1
 ```
+
+Once the folder has been copied to de board, you are ready to install the package.
+
+```
+# cd ~/xilinx-dnndk-v3.1/ZedBoard/
+
+# ./install.sh
+```
+
+> NOTE: During the installation of the package, it is necesary that the file `opencv.pc` is located in the RootFS `/usr/lib/pkgconfig/` folder. The only configuration that seems to generate this file at this location is adding the opencv package to the RootFS file system with the command `petalinux-config -c rootfs` at the `> Filesystem > libs > opencv`. The addition of the needed libraries is better explained in section [Add libraries to RootFS](#add-libraries-to-rootfs).
