@@ -2,6 +2,8 @@ This document intends to be a guide which shows the process to use the Xilinx Ed
 
 In this guide it is preteded to explain the whole process to implement DNN inference on Zedboard. Software tools that have to be installed, creation of the hardware description project, configuration of an Operating System project to use this harware description with the ZedBoard, installation of Edge AI compilation tools and inference of several DNN models such as mobilenetv1, mobilenetv2 and inceptionv1.
 
+> NOTE: In the following sections, this symbol `#` indicates that the commands displayed are being executed in the board, while `$` indicates that commands are being executed in the host.
+
 ### Table of Contents
 
 - [Prerequisites](#prereqisites)
@@ -24,6 +26,12 @@ In this guide it is preteded to explain the whole process to implement DNN infer
   - [Donwload and Installation of the DNNDK](#download-and-installation-of-the-dnndk)
     - [Setting up the host](#setting-up-the-host)
     - [Setting up the ZedBoard](#setting-up-the-zedboard)
+    - [Execute examples](#execute-examples)
+  - [Network Deployment of DNNDK host examples](#network-deployment-of-dnndk-host-examples)
+    - [TensorFlow version of resnet_v1_50](#tensorflow-version-of-resnet_v1_50)
+  - [Network Deployment of DNN pre trained model](#network-deployment-of-dnn-pre-trained-model)
+    - [Caffe model](#caffe-model)
+    - [TensorFlow model](#tensorflow-model)
 
 
 
@@ -808,3 +816,273 @@ Once the folder has been copied to de board, you are ready to install the packag
 ```
 
 > NOTE: During the installation of the package, it is necesary that the file `opencv.pc` is located in the RootFS `/usr/lib/pkgconfig/` folder. The only configuration that seems to generate this file at this location is adding the opencv package to the RootFS file system with the command `petalinux-config -c rootfs` at the `> Filesystem > libs > opencv`. The addition of the needed libraries is better explained in section [Add libraries to RootFS](#add-libraries-to-rootfs).
+
+
+
+#### Execute examples
+After installing the DNNDK ZedBoard package in the board, there is several examples ready to be executed. This way you can see if everything is working properly.
+
+- **Resnet50**: The resnet50 example has been created in C++. In the directory `# ~/xilinx-dnndk-v3.1/ZedBoard/samples/resnet50` there is two folders and a *Makefile*. The makefile is neccesary to create the executable of the model, which is going to have the same name as the model. The *Makefile* is executed with the `make` command. In the `model` folder, there is the DPU model of the used DNN. This file can be created with the DNNDK libraries that can be used in the host machine. In the folder `src`, there is the C++ code for the processor that actually manages the DPU and processor kernels, loads the images, and executes the application. Here is where it is possible to implement in the ZedBoard CPU the execution of DNN layers the DPU has no support for, such as the `softmask` layer.
+
+In order to run this example, execute this lines in a linux console of your host machine connected to the board through ssh. There is a guide on how to stablish this type of conection [here](https://github.com/UviDTE-FPSoC/Zynq7000-examples/tree/master/SD-operating-system/PetaLinux/2019.2#configure-ip-to-connect-to-the-board), in section **SHH connection**.
+
+Once the connection has been established, run the following commands in the board through this connection.
+
+```
+# cd ~/xilinx-dnndk-v3.1/ZedBoard/samples/resnet50/
+
+# make
+
+# ./resnet50
+```
+
+The result printed in your screen should be similar to this one.
+
+```
+Load image : PIC_001.jpg
+
+Run DPU Task for ResNet50 ...
+  DPU Task Execution time: 100915us
+  DPU Task Performance: 76.4009GOPS
+top[0] prob = 0.759646  name = Border collie
+top[1] prob = 0.169500  name = collie
+top[2] prob = 0.008439  name = Irish wolfhound
+top[3] prob = 0.008439  name = borzoi, Russian wolfhound
+top[4] prob = 0.006572  name = Saint Bernard, St Bernard
+```
+
+The input image in this case whas the following.
+
+![alt text](https://raw.githubusercontent.com/UviDTE-FPSoC/vitis-dnn/master/ZedBoard_DNNs/GuideImages/PIC_001.jpg)
+
+----------------------------------------------------------------------
+
+
+
+- **inception_v1_mt**: This other example has been created with python. The file `inception_v1_mt` contains the code for the processor of the board, that, similarly to the last example, manages the DPU and processor kernels, loads the images, and executes the application.
+
+To run this example, execute the following comand, indicating the number of threads you want to be used. Depending on the board, the most efficient number of threads can differ.
+
+```
+# cd ~/xilinx-dnndk-v3.1/ZedBoard/samples/inception_v1_mt/
+
+# ./inception_v1_mt.py 1
+```
+
+The printed result should be the following for one thread:
+
+```
+Loading  PIC_001.jpg
+Input thread number is: 1
+17.65 FPS
+```
+
+
+
+### Network Deployment of DNNDK host examples
+There are two stages for developing deep learning applications, training and inference. The training
+stage is used to design a neural network for a specific task (such as image classification) using a huge amount of training data. The inference stage involves the deployment of the previously designed neural network to handle new input data not seen during the training stage.
+The DNNDK toolchain provides an innovative workflow to efficiently deploy deep learning inference
+applications on the DPU.
+
+In ths secction we guide you throught the creation of an inference application, having an already trained model. In this case we use the already existing models in the `/<dnndk-package-download directory>/xilinx_dnndk_v3.1/host/models/` directory, both for `Caffe` and `TensorFlow` frameworks. The steps followed to generate the application are now listed donw.
+
+1. Compress the neural network model. This is a method to reduce the size of the network by executing pruning or quantization. Pruning consists in modifying the weights and biases that are very close to zero with a zero. Quantization, on the other hand, will switch the data type of the weights and biases, usually from `float32` to `int8`. Both of this opperations have the capability of highly reducing the memory space needed to execute a DNN while barely reducing the efficiency.
+
+The pruning tool is not supported in theis release, and the purchase of a license is needed to be able to use it.
+
+2. Compile the neural network model. Toold used to create the binary file of the model that can be later on used byt the ZedBoard application we create.
+
+3. Program with DNNDK APIs.
+
+4. Compile the hybrid DPU application.
+
+5. Run the hybrid DPU executable.
+
+The execution of all the examples needs a calibration data set of 100 to 1000 images that can be downloaded from the ImageNet dataset [here](http://academictorrents.com/collection/imagenet-2012). In this page you can download a 147 GB file with training images, which you don't need for the DNNDK package, or a 6.74 GB file with validation images. This smaller set should be downloaded, and can be done [here](http://academictorrents.com/details/a306397ccf9c2ead27155983c254227c0fd938e2). The `.tar` arquive you can download here contains up to 50000 images. The problem with this images is that there is no `.txt` file with them that contains a list of all the images. We are going to create this list with a python script, only using the first 1000 images. The content of this file would be the following:
+
+```python
+# -*- coding: utf-8 -*-
+
+def main():
+
+    # Open the file for writing and create it if it doewn't exist
+    f = open("imagenet_calib.txt","w+")
+
+    # Write the name of the images from 1 to 1000
+    i = 1
+    while i<10:
+        f.write("ILSVRC2012_val_0000000{}.JPEG\n".format(i))
+        i = i + 1
+
+    while i<100:
+        f.write("ILSVRC2012_val_000000{}.JPEG\n".format(i))
+        i = i + 1
+
+    while i<1000:
+        f.write("ILSVRC2012_val_00000{}.JPEG\n".format(i))
+        i = i + 1
+
+    f.write("ILSVRC2012_val_0000{}.JPEG\n".format(i))
+
+    #Close the file when finished
+    f.close()
+
+
+if __name__== "__main__":
+    main()
+```
+
+You can copy this text to a `<name_of_the_file>.py` file and create the `imagenet_calib.txt` file by runing the command `python <name_of_the_file>.py` in the terminal.
+
+Another way of downloading both the validation data list and training data list for both imagenet datasets is using the script [here](https://github.com/BVLC/caffe/blob/master/data/ilsvrc12/get_ilsvrc_aux.sh).
+
+
+
+#### TensorFlow version of resnet_v1_50
+This section guides you through a whlole inference application creation for a `resnet_v1_50` model in the TensorFlow framework using the already existing scripts in the `/<xilinx-dnndk-v3.1-download_directory/xilinx_dnndk_v3.1/host/models/TensoFlow/resnet_v1_50` directory. This example follows the steps of the [DNNDK User Guide](https://www.xilinx.com/support/documentation/sw_manuals/ai_inference/v1_6/ug1327-dnndk-user-guide.pdf). The actual creation of each of the scripts needed will be explained with detail in section [Network Deployment of DNN pre trained model](#network-deployment-of-dnn-pre-trained-model).
+
+This example's directory contains several scripts. First of all it has the pre-trained model of resnet_v1_50 in the `float_graph` folder. The files within this folder are used by the `freeze_graph.sh` to generate the `.pb` file used as imput of the quantization tool. This file's content is now displayed.
+
+```
+#!/bin/sh
+set -e
+
+freeze_graph \
+  --input_graph=./float_graph/resnet_v1_50_inf_graph.pb \
+  --input_checkpoint=./float_graph/resnet_v1_50.ckpt \
+  --input_binary=true \
+  --output_graph=./frozen_resnet_v1_50.pb \
+  --output_node_names=resnet_v1_50/predictions/Reshape_1
+```
+
+To execute this script, do the following. It is not necessary to execute it though as the directory already contains the output `frozen_resnet_v1_50.pb` file needed by the quantization tool.
+
+```
+cd /<xilinx-dnndk-v3.1-download_directory/xilinx_dnndk_v3.1/host/models/TensoFlow/resnet_v1_50
+
+source activate decent
+
+sh freeze_graph.sh
+```
+
+- **Prepare floating-point frozen model and dataset**.
+The image pre-processing is not included in the `.pb` output of the frozen graph. The application is going to need this pre-processing, therefore it is included in the `resnet_v1_50_input_fn.py` python script. This script crops the images to a `224x224` size and performs mean_substraction.
+
+```python
+from resnet_v1_50_preprocessing import *
+
+def eval_input(iter, eval_image_dir, eval_image_list, class_num, eval_batch_size):
+  images = []
+  labels = []
+  line = open(eval_image_list).readlines()
+  for index in range(0, eval_batch_size):
+    curline = line[iter * eval_batch_size + index]
+    [image_name, label_id] = curline.split(' ')
+    image = cv2.imread(eval_image_dir + image_name)
+    image = central_crop(image, 224, 224)
+    image = mean_image_subtraction(image, MEANS)
+    images.append(image)
+    labels.append(int(label_id))
+  lb = preprocessing.LabelBinarizer()
+  lb.fit(range(0, class_num))
+  labels = lb.transform(labels)
+  return {"input": images, "labels": labels}
+
+# calib_image_dir = "../../calibration_data/imagenet_images/"
+calib_image_dir = "/media/arroas/HDD/MinhasCousas/EEI/Mestrado/2_Curso/TFM/Inference_Images/calibration_data/imagenet_images/"
+# calib_image_list = "../../calibration_data/imagenet_calib.txt"
+calib_image_list = "/media/arroas/HDD/MinhasCousas/EEI/Mestrado/2_Curso/TFM/Inference_Images/calibration_data/imagenet_calib.txt"
+calib_batch_size = 50
+def calib_input(iter):
+  images = []
+  line = open(calib_image_list).readlines()
+  for index in range(0, calib_batch_size):
+    curline = line[iter * calib_batch_size + index]
+    calib_image_name = curline.strip()
+    image = cv2.imread(calib_image_dir + calib_image_name)
+    image = central_crop(image, 224, 224)
+    image = mean_image_subtraction(image, MEANS)
+    images.append(image)
+  return {"input": images}
+```
+
+In this script you only need to modify the `calib_image_dir` and the `calib_image_list` to the directory where you downloaded your images.
+
+--------------------------------------------------------------------
+
+- **Quantization**.
+To run quantization, execute the `decent_q.sh` script.
+
+```
+sh decent_q.sh
+```
+
+This script configures the quantization tool, indicating the previously created frozen graph as an input, with the image size after the preprocessing and the input_fn file that creates the preprocesing of the images.
+
+```
+decent_q quantize \
+    --input_frozen_graph frozen_resnet_v1_50.pb \
+    --input_nodes input \
+    --input_shapes ?,224,224,3 \
+    --output_nodes resnet_v1_50/predictions/Reshape_1 \
+    --input_fn resnet_v1_50_input_fn.calib_input \
+    --method 1 \
+    --gpu 0 \
+    --calib_iter 10 \
+    --output_dir ./quantize_results \
+```
+
+> NOTE: If you aren't using the gpu DECENT_Q version, erase the line `--gpu 0 \`.
+
+Note that the input_fn graph is a `resnet_v1_50_input_fn.py` file in our directory, but in the script above is indicated as a `resnet_v1_50_input_fn.calib_input` file.
+
+
+
+### Network Deployment of DNN pre trained model
+This section tends to explain how the creation of a custom application, similar to the ones showed in the previous sections, has to be created and configured in order to be able to be executed in the ZedBoard. All the necessary steps are going to be indicated for both Caffe and Tensorflow frameworks.
+
+
+
+#### Caffe model
+
+
+
+#### TensorFlow model
+A TensorFlow model has a different working flow than a Caffe model. The whole process of creating a custom application with a pre-trained TensorFlow model is now explained.
+
+- **Download a pre-trained model**.
+
+To download a pre-trained model you can use the model zoo repository [here](https://github.com/Xilinx/AI-Model-Zoo/tree/1387830ef9b846255245c1dc063e7c86ac71498e).
+
+--------------------------------------------------------------------------
+
+- **Network compression**. Network compression consists in reducing the size of the DNN model in order to reduce the memory usage needed by the target device when executing inference. The main compression techniques are pruning and quantization, and to execute this techniques it is necessary to use the `DECENT_Q` conda environment that was created in the [Setting up the host](#setting-up-the-howst) section. In any case, previous to the execution of these techniques, it is necessary to prepare the model.
+
+The `DECENT_Q` environment needs to create a series of files to be able to properly execute pruning and quantization. This files would be the `frozen_graph.pb`, the `calibration dataset` and the `Input_fn`.
+
+1. Freeze the network.
+The `frozen_graph.pb` is a file which contains the pre-trained DNN model but with all its variables converted to constant values. This file is created from the `.pb` file given by the pre-trained model, and a set of checkpoint files, `.ckpt`. In order to handle this conversion, TensorFlow provides a `freeze_graph.py` script which is installed with `DECENT_Q`. To use this tool, you can execute the following commands or copy them into a `.sh` file, in order to execute them all together.
+
+```
+$ freeze_graph \
+      --input_graph /tmp/inception_v1_inf_graph.pb \
+      --input_checkpoint /tmp/checkpoints/model.ckpt-1000 \
+      --input_binary true \
+      --output_graph /tmp/frozen_graph.pb \
+      --output_node_names InceptionV1/Predictions/Reshape_1
+```
+
+> NOTE: To see all the options of the freeze tool, execute the `freeze_graph --help` command.
+
+
+
+2. Calibration dataset and input function
+The calibration dataset can be obtaind as explained at the end of section [Network Deployment of DNNDK host examples](#network-deployment-of-dnndk-host-examples).
+
+The input function complete
+
+
+
+3. Quantization
+  
