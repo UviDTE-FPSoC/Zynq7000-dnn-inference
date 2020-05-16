@@ -1630,7 +1630,7 @@ InceptionV1_Logits_Conv2d_0c_1x1_Conv2D(0) : 1*1*1001
 
 The compilation process outputs two kernels, one to deploy in the DPU, `inception_v1_0.elf`, and another one to implement in the CPU with the DNNDK APIs. The compilation tool `DNNC` also outputs a graph that ilustrates how to interconnect the kernels.
 
-![alt text]()
+![alt text](https://raw.githubusercontent.com/UviDTE-FPSoC/vitis-dnn/master/ZedBoard_DNNs/GuideImages/inception_v1_kernel_graph.jpg)
 
 
 
@@ -1894,3 +1894,26 @@ $ decent_q dump \
 - `dump_float` is a field that indicates wheter or not to dump unquatized nodes. Zero stands for not dumping this type of node.
 
 For each quantized node, results will be saved in “*...int8.bin*” and “*...int8.txt*” format.
+
+--------------------------------------------------------------------------
+
+- **Network compilation**. The architecture of the Deep Neural Network Compiler (DNNC) compiler consists of a parser, an optimizer and a code-generator. The front-end parser is responsible for parsing the Caffe/TensorFlow model and generates an intermediate representation (IR) of the input model. The optimizer handles optimizations based on the IR, and the code generator maps the optimized IR to DPU instructions.
+
+The compilation process has two very important steps:
+
+1. DLet
+This tool is used to charge your Vivado project DPU configuration in the DNNC compiler.
+
+
+
+2. Compilation
+When compiling a model, there is several parameters that have to be indicated:
+
+- `parser` can be filled up with two options, *caffe* or *tensorflow*. Depending on the model framework, you have to chose one or the otherone. If using a Caffe model, you have to indicate two more fields, `prototxt` and `caffemodel`, where you have to indicate the location of the prototxt and caffemodel files. If using TensorFlow, you have to indicate the `frozen_pb` field, where you should indicate the location of your deploy_model.pb file.
+- `dfc` field indicates the path to the configuration file that was created with the `DLet` tool.
+- `mode` establishes the compilation model of the DPU, which can be `debug` or `normal`. The debug option enables to run the layers of the model one by one under the scheduling of the N2Cube. With the DExplorer application, users can perform debugging or performance profiling for each layer. Normal mode packages all the layers of the model into one single DPU execution. With this mode, DPU kernel delibers better performance, and it is recommended for the release phase of an application.
+- `cpu_arch` indicates the architecture of the target device. The possibilities are `arm32` or `arm64`.
+- `output_dir` establishes the output directory of the compiled model.
+
+There are more parameters that can be set, and they are all specified in the [DNNDK User Guide, pages 65-67](https://www.xilinx.com/support/documentation/sw_manuals/ai_inference/v1_6/ug1327-dnndk-user-guide.pdf).
+  
