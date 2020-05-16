@@ -29,6 +29,7 @@ In this guide it is preteded to explain the whole process to implement DNN infer
     - [Execute examples](#execute-examples)
   - [Network Deployment of DNNDK host examples](#network-deployment-of-dnndk-host-examples)
     - [TensorFlow version of resnet_v1_50](#tensorflow-version-of-resnet_v1_50)
+    - [TensorFlow version of inception_v1](#tensorflow-version-of-inception-v1)
   - [Network Deployment of DNN pre trained model](#network-deployment-of-dnn-pre-trained-model)
     - [Caffe model](#caffe-model)
     - [TensorFlow model](#tensorflow-model)
@@ -899,7 +900,7 @@ The pruning tool is not supported in theis release, and the purchase of a licens
 
 5. Run the hybrid DPU executable.
 
-The execution of all the examples needs a calibration data set of 100 to 1000 images that can be downloaded from the ImageNet dataset [here](http://academictorrents.com/collection/imagenet-2012). In this page you can download a 147 GB file with training images, which you don't need for the DNNDK package, or a 6.74 GB file with validation images. This smaller set should be downloaded, and can be done [here](http://academictorrents.com/details/a306397ccf9c2ead27155983c254227c0fd938e2). The `.tar` arquive you can download here contains up to 50000 images. The problem with this images is that there is no `.txt` file with them that contains a list of all the images. We are going to create this list with a python script, only using the first 1000 images. The content of this file would be the following:
+The execution of all the examples needs a calibration data set of 100 to 1000 images that can be downloaded from the ImageNet dataset [here](http://academictorrents.com/collection/imagenet-2012). In this page you can download a 147 GB file with training images, which you don't need for the DNNDK package, or a 6.74 GB file with validation images. This smaller set should be downloaded, and can be done [here](http://academictorrents.com/details/a306397ccf9c2ead27155983c254227c0fd938e2). The `.tar` arquive you can download here contains up to 50000 images. The problem with this images is that there is no `.txt` file with them that contains a list of all the images with no labels. We are going to create this list with a python script. The content of this file would be the following:
 
 ```python
 # -*- coding: utf-8 -*-
@@ -923,7 +924,9 @@ def main():
         f.write("ILSVRC2012_val_00000{}.JPEG\n".format(i))
         i = i + 1
 
-    f.write("ILSVRC2012_val_0000{}.JPEG\n".format(i))
+    while i<5001:
+        f.write("ILSVRC2012_val_0000{}.JPEG\n".format(i))
+        i = i + 1
 
     #Close the file when finished
     f.close()
@@ -935,12 +938,12 @@ if __name__== "__main__":
 
 You can copy this text to a `<name_of_the_file>.py` file and create the `imagenet_calib.txt` file by runing the command `python <name_of_the_file>.py` in the terminal.
 
-Another way of downloading both the validation data list and training data list for both imagenet datasets is using the script [here](https://github.com/BVLC/caffe/blob/master/data/ilsvrc12/get_ilsvrc_aux.sh).
+To download both the validation data list and training data list for both imagenet datasets, with lists containig the labels, is using the script [here](https://github.com/BVLC/caffe/blob/master/data/ilsvrc12/get_ilsvrc_aux.sh).
 
 
 
 #### TensorFlow version of resnet_v1_50
-This section guides you through a whlole inference application creation for a `resnet_v1_50` model in the TensorFlow framework using the already existing scripts in the `/<xilinx-dnndk-v3.1-download_directory/xilinx_dnndk_v3.1/host/models/TensoFlow/resnet_v1_50` directory. This example follows the steps of the [DNNDK User Guide](https://www.xilinx.com/support/documentation/sw_manuals/ai_inference/v1_6/ug1327-dnndk-user-guide.pdf). The actual creation of each of the scripts needed will be explained with detail in section [Network Deployment of DNN pre trained model](#network-deployment-of-dnn-pre-trained-model).
+This section guides you through the compression and compilation process of an inference application for a `resnet_v1_50` model in the TensorFlow framework. We will be using the already existing scripts in the `/<xilinx-dnndk-v3.1-download_directory/xilinx_dnndk_v3.1/host/models/TensoFlow/resnet_v1_50` directory. This example follows the steps of the [DNNDK User Guide](https://www.xilinx.com/support/documentation/sw_manuals/ai_inference/v1_6/ug1327-dnndk-user-guide.pdf). The actual creation of each of the scripts needed will be explained with detail in section [Network Deployment of DNN pre trained model](#network-deployment-of-dnn-pre-trained-model).
 
 This example's directory contains several scripts. First of all it has the pre-trained model of resnet_v1_50 in the `float_graph` folder. The files within this folder are used by the `freeze_graph.sh` to generate the `.pb` file used as imput of the quantization tool. This file's content is now displayed.
 
@@ -956,18 +959,35 @@ freeze_graph \
   --output_node_names=resnet_v1_50/predictions/Reshape_1
 ```
 
+In this script we have the `output_node_names` field to fill up, and in future scripts, we will also have the `input_node_names` one. To obtain an estimation of what names you should put in here, run the following command.
+
+```
+$ cd /<xilinx-dnndk-v3.1-download_directory/xilinx_dnndk_v3.1/host/models/TensoFlow/resnet_v1_50/float_graph
+
+$ decent_q inspect --input_frozen_graph resnet_v1_50_inf_graph.pb
+```
+
+The result should be similar to the following, and as we see, in indicates the possible input and output name that can be used.
+
+```
+Op types used: 533 Const, 267 Assign, 267 VariableV2, 267 Identity, 70 Add, 54 Conv2D, 54 Mul, 54 TruncatedNormal, 53 FusedBatchNorm, 49 Relu, 45 Fill, 4 MaxPool, 4 Pad, 2 Reshape, 1 BiasAdd, 1 Mean, 1 Placeholder, 1 Shape, 1 Softmax, 1 Squeeze
+
+Found 1 possible inputs: (name=input, type=float(1), shape=[?,224,224,3])
+Found 1 possible outputs: (name=resnet_v1_50/predictions/Reshape_1, op=Reshape)
+```
+
 To execute this script, do the following. It is not necessary to execute it though as the directory already contains the output `frozen_resnet_v1_50.pb` file needed by the quantization tool.
 
 ```
-cd /<xilinx-dnndk-v3.1-download_directory/xilinx_dnndk_v3.1/host/models/TensoFlow/resnet_v1_50
+$ cd /<xilinx-dnndk-v3.1-download_directory/xilinx_dnndk_v3.1/host/models/TensoFlow/resnet_v1_50
 
-source activate decent
+$ source activate decent
 
-sh freeze_graph.sh
+$ sh freeze_graph.sh
 ```
 
 - **Prepare floating-point frozen model and dataset**.
-The image pre-processing is not included in the `.pb` output of the frozen graph. The application is going to need this pre-processing, therefore it is included in the `resnet_v1_50_input_fn.py` python script. This script crops the images to a `224x224` size and performs mean_substraction.
+The image pre-processing is not included in the `.pb` output of the frozen graph. The application is going to need this pre-processing, therefore it is included in the `resnet_v1_50_input_fn.py` python script. This script crops the images to a `224x224` size and performs mean_image_substraction.
 
 ```python
 from resnet_v1_50_preprocessing import *
@@ -1007,6 +1027,41 @@ def calib_input(iter):
   return {"input": images}
 ```
 
+The crop and mean_image_substraction funcitons are defined in the `resnet_v1_50_preprocessing.py` script.
+
+```python
+import cv2
+from sklearn import preprocessing
+
+_R_MEAN = 123.68
+_G_MEAN = 116.78
+_B_MEAN = 103.94
+
+MEANS = [_B_MEAN,_G_MEAN,_R_MEAN]
+
+def mean_image_subtraction(image, means):
+  B, G, R = cv2.split(image)
+  B = B - means[0]
+  G = G - means[1]
+  R = R - means[2]
+  image = cv2.merge([R, G, B])
+  return image
+
+def central_crop(image, crop_height, crop_width):
+  image_height = image.shape[0]
+  image_width = image.shape[1]
+  offset_height = (image_height - crop_height) // 2
+  offset_width = (image_width - crop_width) // 2
+  return image[offset_height:offset_height + crop_height, offset_width:
+               offset_width + crop_width]
+
+def normalize(image):
+  image=image/256.0
+  image=image-0.5
+  image=image*2
+  return image
+```
+
 In this script you only need to modify the `calib_image_dir` and the `calib_image_list` to the directory where you downloaded your images.
 
 --------------------------------------------------------------------
@@ -1033,9 +1088,549 @@ decent_q quantize \
     --output_dir ./quantize_results \
 ```
 
-> NOTE: If you aren't using the gpu DECENT_Q version, erase the line `--gpu 0 \`.
-
 Note that the input_fn graph is a `resnet_v1_50_input_fn.py` file in our directory, but in the script above is indicated as a `resnet_v1_50_input_fn.calib_input` file.
+
+Executing this file though will generate an error if you have downloaded images from the [link](http://academictorrents.com/details/a306397ccf9c2ead27155983c254227c0fd938e2) we previously indicated. The reason is that the `resnet_v1_50_input_fn.py` script shown before has a crop function with size `224x224`, while some of the images in the database of the link are smaller. This will create an error when performing calibration in the quantization script.
+
+To avoid this problem follow these steps.
+
+- In the `resnet_v1_50_input_fn.py` you have selected a batch size of 50, and in the `decent_q.sh`, a number of 10 calibration iterations. This means that you need a total of 500 images to calibrate the model.
+- Go to the images list created with the python script shown in section [Network Deployment of DNNDK host examples](#network-deployment-of-dnndk-host-examples), and erase the names wiht the numbers `87, 157, 188, 199, 436, 504`. This way you will ensure that the first 500 images of the list are big enough.
+- If you want to use more images for you calibration, check that all the images have a size bigger than `224x224`.
+- Execute the quantization tool, `sh decent_q.sh`.
+
+Once the quantization has been performed, the output should be similar to this one:
+
+```
+(decent) arroas@arroas-GL65-9SEK:~/Xilinx-AI_Tools/xilinx_dnndk_v3.1/host_x86/models/tensorflow/resnet_v1_50$ sh decent_q.sh
+INFO: Checking Float Graph...
+INFO: Float Graph Check Done.
+INFO: Calibrating for 10 iterations...
+100% (10 of 10) |#############################################| Elapsed Time: 0:08:53 Time:  0:08:53
+INFO: Calibration Done.
+INFO: Generating Deploy Model...
+[DEPLOY WARNING] Node resnet_v1_50/predictions/Reshape_1(Type: Reshape) is not quantized and cannot be deployed to DPU,because it has unquantized input node: resnet_v1_50/predictions/Softmax. Please deploy it on CPU.
+INFO: Deploy Model Generated.
+********************* Quantization Summary *********************      
+INFO: Output:       
+  quantize_eval_model: ./quantize_results/quantize_eval_model.pb       
+  deploy_model: ./quantize_results/deploy_model.pb
+```
+
+The quantized model will be saved to the `quantize_results` folder, within the directory of the example.
+
+--------------------------------------------------------------------
+
+- **Compilation**.
+
+To compile the example for ZedBoard, execute the `dnnc_ZedBoard.sh` script:
+
+```
+sh dnnc_ZedBoard.sh
+```
+
+The content of this script should be the following:
+
+```
+#!/usr/bin/env bash
+
+net="resnet_v1_50"
+CPU_ARCH="arm64"
+DNNC_MODE="debug"
+dnndk_board="ZedBoard"
+dnndk_dcf="../../../dcf/ZedBoard.dcf"
+
+echo "Compiling Network ${net}"
+
+# Work space directory
+work_dir=$(pwd)
+
+# Path of caffe quantization model
+model_dir=${work_dir}/quantize_results
+# Output directory
+output_dir="dnnc_output"
+
+tf_model=${model_dir}/deploy_model.pb
+
+DNNC=dnnc
+
+# Get DNNDK config info
+if [ ! -f /etc/dnndk.conf ]; then
+    echo "Error: Cannot find /etc/dnndk.conf"
+    exit 1
+else
+    tmp=$(grep "DNNDK_VERSION=" /etc/dnndk.conf)
+    dnndk_version=${tmp#DNNDK_VERSION=}
+    dnndk_version=${dnndk_version#v}
+    echo "DNNDK      : $dnndk_version"
+    echo "Board Name : $dnndk_board"
+    echo "DCF file   : $dnndk_dcf"
+fi
+
+if [ ! -d "$model_dir" ]; then
+    echo "Can not found directory of $model_dir"
+    exit 1
+fi
+
+[ -d "$output_dir" ] || mkdir "$output_dir"
+
+echo "CPU Arch   : $CPU_ARCH"
+echo "DNNC Mode  : $DNNC_MODE"
+echo "$(dnnc --version)"
+$DNNC   --parser=tensorflow                         \
+       --frozen_pb=${tf_model}                     \
+       --output_dir=${output_dir}                  \
+       --dcf=${dnndk_dcf}                          \
+       --mode=${DNNC_MODE}                         \
+       --cpu_arch=${CPU_ARCH}                      \
+       --net_name=${net}
+```
+
+You shouldn't need to make any changes to this script. The results of this script should be the files with the kernels of the DPU, for all the layers supported by it, and the kernels of the CPU, for all the layers not supported. The communication between the kernels of DPU and CPU has to be done manually in the application script. In this case, the output of the `dnnc_ZedBoard.sh` should be the following:
+
+```
+(decent) arroas@arroas-GL65-9SEK:~/Xilinx-AI_Tools/xilinx_dnndk_v3.1/host_x86/models/tensorflow/resnet_v1_50$ sh dnnc_ZedBoard.sh
+Compiling Network resnet_v1_50
+DNNDK      : 3.1
+Board Name : ZedBoard
+DCF file   : ../../../dcf/ZedBoard.dcf
+CPU Arch   : arm64
+DNNC Mode  : debug
+dnnc version v3.00
+DPU Target : v1.4.0
+Build Label: Aug  9 2019 05:23:25
+Copyright @2019 Xilinx Inc. All Rights Reserved.
+
+[DNNC][Warning] layer [resnet_v1_50_SpatialSqueeze] (type: Squeeze) is not supported in DPU, deploy it in CPU instead.
+[DNNC][Warning] layer [resnet_v1_50_predictions_Softmax] (type: Softmax) is not supported in DPU, deploy it in CPU instead.
+
+DNNC Kernel topology "resnet_v1_50_kernel_graph.jpg" for network "resnet_v1_50"
+DNNC kernel list info for network "resnet_v1_50"
+                               Kernel ID : Name
+                                       0 : resnet_v1_50_0
+                                       1 : resnet_v1_50_1
+
+                             Kernel Name : resnet_v1_50_0
+--------------------------------------------------------------------------------
+                             Kernel Type : DPUKernel
+                               Code Size : 0.99MB
+                              Param Size : 24.35MB
+                           Workload MACs : 6964.51MOPS
+                         IO Memory Space : 2.25MB
+                              Mean Value : 0, 0, 0,
+                              Node Count : 58
+                            Tensor Count : 59
+                    Input Node(s)(H*W*C)
+            resnet_v1_50_conv1_Conv2D(0) : 224*224*3
+                   Output Node(s)(H*W*C)
+           resnet_v1_50_logits_Conv2D(0) : 1*1*1000
+
+
+                             Kernel Name : resnet_v1_50_1
+--------------------------------------------------------------------------------
+                             Kernel Type : CPUKernel
+                    Input Node(s)(H*W*C)
+             resnet_v1_50_SpatialSqueeze : 1*1*1000
+                   Output Node(s)(H*W*C)
+        resnet_v1_50_predictions_Softmax : 1*1*1000
+
+```
+
+The result files would be a .elf kernel, `resnet_v1_50_0`, to deploy in the DPU, and the `resnet_v1_50_1`, which has to be created by the user and deployed in the CPU of your target board.
+
+------------------------------------------------------------------------------
+
+#### TensorFlow version of inception_v1
+This section guides you through a whlole inference application creation for a `inception_v1` model in the TensorFlow framework. We will be using the already existing scripts in the `/<xilinx-dnndk-v3.1-download_directory/xilinx_dnndk_v3.1/host/models/TensoFlow/resnet_v1_50` directory. This example follows the steps of the [DNNDK User Guide](https://www.xilinx.com/support/documentation/sw_manuals/ai_inference/v1_6/ug1327-dnndk-user-guide.pdf). The actual creation of each of the scripts needed will be explained with detail in section [Network Deployment of DNN pre trained model](#network-deployment-of-dnn-pre-trained-model).
+
+This example's directory contains several scripts. First of all it has the pre-trained model of inception_v1 in the `float_graph` folder. The files within this folder are used by the `freeze_graph.sh` to generate the `.pb` file used as imput of the quantization tool. This file's content is now displayed.
+
+```
+#!/bin/sh
+set -e
+
+freeze_graph \
+  --input_graph=./float_graph/inception_v1_inf_graph.pb \
+  --input_checkpoint=./float_graph/inception_v1.ckpt \
+  --input_binary=true \
+  --output_graph=./frozen_inception_v1.pb \
+  --output_node_names=InceptionV1/Logits/Predictions/Reshape_1
+```
+
+To check the input and output node names, which are necesary in this and future scripts, run the following command.
+
+```
+$ cd /<xilinx-dnndk-v3.1-download_directory/xilinx_dnndk_v3.1/host/models/TensoFlow/inception_v1/float_graph
+
+$ decent_q inspect --input_frozen_graph inception_v1_inf_graph.pb
+```
+
+The result should be the following:
+
+```
+Op types used: 529 Const, 231 Identity, 230 Assign, 230 VariableV2, 58 Conv2D, 58 Mul, 58 TruncatedNormal, 58 Add, 57 FusedBatchNorm, 57 Relu, 13 MaxPool, 9 ConcatV2, 2 Reshape, 1 BiasAdd, 1 Fill, 1 AvgPool, 1 Placeholder, 1 Shape, 1 Softmax, 1 Squeeze
+
+Found 1 possible inputs: (name=input, type=float(1), shape=[?,224,224,3])
+Found 1 possible outputs: (name=InceptionV1/Logits/Predictions/Reshape_1, op=Reshape)
+```
+
+To execute the script that freezes the model, use the following commands. It is not necessary to execute it though, as the directory already contains the output `frozen_inception_v1.pb` file needed by the quantization tool.
+
+```
+$ cd /<xilinx-dnndk-v3.1-download_directory/xilinx_dnndk_v3.1/host/models/TensoFlow/resnet_v1_50
+
+$ source activate decent
+
+$ sh freeze_graph.sh
+```
+
+Once this operation has finished, you can evaluate the `frozen_inception_v1.pb` freezed model with the `evaluate_frozen_graph.sh`.
+
+```
+#!/bin/sh
+
+set -e
+
+# Please set your imagenet validation dataset path here,
+IMAGE_DIR=/media/arroas/HDD/MinhasCousas/EEI/Mestrado/2_Curso/TFM/Inference_Images/calibration_data/imagenet_images/
+IMAGE_LIST=/media/arroas/HDD/MinhasCousas/EEI/Mestrado/2_Curso/TFM/Inference_Images/calibration_data/val.txt
+
+# Please set your batch size settings here, #IMAGES = VAL_BATCHES * BATCH_SIZE
+# Commonly there are 5w image in total for imagenet validation dataset
+EVAL_BATCHES=10     #1000
+BATCH_SIZE=50
+
+python inception_v1_eval.py \
+  --input_frozen_graph frozen_inception_v1.pb \
+  --input_node input \
+  --output_node InceptionV1/Logits/Predictions/Reshape_1 \
+  --eval_batches $EVAL_BATCHES \
+  --batch_size $BATCH_SIZE \
+  --eval_image_dir $IMAGE_DIR \
+  --eval_image_list $IMAGE_LIST \
+  --gpu 0
+```
+
+> NOTE: the val.txt with the image names and labels can be downloaded from the link indicated in section [Network Deployment of DNNDK host examples](#network-deployment-of-dnndk-host-examples)
+
+Evalutaion should be run with the 1000 batches, but we don't have that many images. The results with 10 batches are the following.
+
+```
+Use tf.gfile.GFile.
+Start Evaluation for 10 Batches...
+100% (10 of 10) |#############################################| Elapsed Time: 0:00:20 Time:  0:00:20
+Accuracy: Top1: 0.6320000052452087, Top5: 0.8519999921321869
+```
+
+- **Prepare floating-point frozen model and dataset**.
+The image pre-processing is not included in the `.pb` output of the frozen graph. The application is going to need this pre-processing, therefore it is included in the `inception_v1_input_fn.py` python script. This script crops the images to a `224x224` size and performs mean_substraction, but the user can define any preprocesing sequence they need.
+
+```python
+from inception_v1_preprocessing import *
+
+def eval_input(iter, eval_image_dir, eval_image_list, class_num, eval_batch_size):
+  images = []
+  labels = []
+  line = open(eval_image_list).readlines()
+  for index in range(0, eval_batch_size):
+    curline = line[iter * eval_batch_size + index]
+    [image_name, label_id] = curline.split(' ')
+    image = cv2.imread(eval_image_dir + image_name)
+    image = central_crop(image, 224, 224)
+    image = mean_image_subtraction(image, MEANS)
+    image = normalize(image)
+    images.append(image)
+    labels.append(int(label_id) + 1)
+  lb = preprocessing.LabelBinarizer()
+  lb.fit(range(0, class_num))
+  labels = lb.transform(labels)
+  return {"input": images, "labels": labels}
+
+
+# calib_image_dir = "../../calibration_data/imagenet_images/"
+calib_image_dir = "/media/arroas/HDD/MinhasCousas/EEI/Mestrado/2_Curso/TFM/Inference_Images/calibration_data/imagenet_images/"
+# calib_image_list = "../../calibration_data/imagenet_calib.txt"
+calib_image_list = "/media/arroas/HDD/MinhasCousas/EEI/Mestrado/2_Curso/TFM/Inference_Images/calibration_data/imagenet_calib.txt"
+calib_batch_size = 1
+def calib_input(iter):
+  images = []
+  line = open(calib_image_list).readlines()
+  for index in range(0, calib_batch_size):
+    curline = line[iter * calib_batch_size + index]
+    calib_image_name = curline.strip()
+    image = cv2.imread(calib_image_dir + calib_image_name)
+    image = central_crop(image, 224, 224)
+    image = mean_image_subtraction(image, MEANS)
+    image = normalize(image)
+    images.append(image)
+  return {"input": images}
+```
+
+In this script, it is important to specify the directory where the images you downloaded in section [Network Deployment of DNNDK host examples](#network-deployment-of-dnndk-host-examples) are located. This images have a problem that was already indicated with the `resnet_v1_50` example. Some of them are smaller than `224x224` pixels, therefore an error occurs when performing the crop function to those images. For the first 500 images, the list of images you should get rid of is `87, 157, 188, 199, 436, 504`. If you use any of the remaining 49500 images that you can download, have in mind that there can be more images smaller than the required size for this crop function.
+
+The functions of this script are defined in the `inception_v1_preprocessing.py` script.
+
+```python
+import cv2
+from sklearn import preprocessing
+
+_R_MEAN = 0
+_G_MEAN = 0
+_B_MEAN = 0
+
+MEANS = [_B_MEAN,_G_MEAN,_R_MEAN]
+
+def mean_image_subtraction(image, means):
+  B, G, R = cv2.split(image)
+  B = B - means[0]
+  G = G - means[1]
+  R = R - means[2]
+  image = cv2.merge([R, G, B])
+  return image
+
+def central_crop(image, crop_height, crop_width):
+  image_height = image.shape[0]
+  image_width = image.shape[1]
+
+  offset_height = (image_height - crop_height) // 2
+  offset_width = (image_width - crop_width) // 2
+
+  return image[offset_height:offset_height + crop_height, offset_width:
+               offset_width + crop_width]
+
+def normalize(image):
+  image=image/256.0
+  image=image-0.5
+  image=image*2
+  return image
+```
+
+--------------------------------------------------------------------
+
+- **Quantization**.
+To run quantization, execute the `decent_q.sh` script.
+
+```
+sh decent_q.sh
+```
+
+The content of this script should look like below.
+
+```
+decent_q quantize \
+  --input_frozen_graph frozen_inception_v1.pb \
+  --input_nodes input \
+  --input_shapes ?,224,224,3 \
+  --output_nodes InceptionV1/Logits/Predictions/Reshape_1 \
+  --input_fn inception_v1_input_fn.calib_input \
+  --method 1 \
+  --gpu 0 \
+  --calib_iter 100 \
+```
+
+It is clearly seen that the input and output nodes are filed with the names obtained from running the `decent_q inspect` command. The `calib_iter` field indicates how many iterations are made. As we are using a batch size of 1, the total images needed for the calibration process are 100. This is better explained in section [TensorFlow model](#tensorflow-model)'s third step.
+
+The output you get from a succesfull quantization should look like this.
+
+```
+INFO: Checking Float Graph...
+INFO: Float Graph Check Done.
+INFO: Calibrating for 100 iterations...
+100% (100 of 100) |###########################################| Elapsed Time: 0:00:39 Time:  0:00:39
+INFO: Calibration Done.
+INFO: Generating Deploy Model...
+[DEPLOY WARNING] Node InceptionV1/Logits/Predictions/Reshape_1(Type: Reshape) is not quantized and cannot be deployed to DPU, because it has unquantized input node: InceptionV1/Logits/Predictions/Softmax. Please deploy it on CPU.
+INFO: Deploy Model Generated.
+********************* Quantization Summary *********************      
+INFO: Output:       
+  quantize_eval_model: ./quantize_results/quantize_eval_model.pb       
+  deploy_model: ./quantize_results/deploy_model.pb
+```
+
+Once quantization has been performed, we can evaluate the model again, to see if there is any significant loss in accuracy. We would now use the `evaluate_quantized_graph.sh` script.
+
+```
+#!/bin/sh
+
+set -e
+
+# Please set your imagenet validation dataset path here,
+IMAGE_DIR=/media/arroas/HDD/MinhasCousas/EEI/Mestrado/2_Curso/TFM/Inference_Images/calibration_data/imagenet_images/
+IMAGE_LIST=/media/arroas/HDD/MinhasCousas/EEI/Mestrado/2_Curso/TFM/Inference_Images/calibration_data/val.txt
+
+# Please set your batch size settings here, #IMAGES = VAL_BATCHES * BATCH_SIZE
+# Commonly there are 5w image in total for imagenet validation dataset
+EVAL_BATCHES=10		#1000
+BATCH_SIZE=50
+
+python inception_v1_eval.py \
+  --input_frozen_graph quantize_results/quantize_eval_model.pb \
+  --input_node input \
+  --output_node InceptionV1/Logits/Predictions/Reshape_1 \
+  --eval_batches $EVAL_BATCHES \
+  --batch_size $BATCH_SIZE \
+  --eval_image_dir $IMAGE_DIR \
+  --eval_image_list $IMAGE_LIST \
+  --gpu 0
+```
+
+> NOTE: the val.txt with the image names and labels can be downloaded from the link indicated in section [Network Deployment of DNNDK host examples](#network-deployment-of-dnndk-host-examples)
+
+The val.text file has to contain a list with all the image names and the labels of each image. The result of the evaluation is now showed, although it would be better to use the 50000 images, and not only 500.
+
+```
+Start Evaluation for 10 Batches...
+100% (10 of 10) |#############################################| Elapsed Time: 0:00:29 Time:  0:00:29
+Accuracy: Top1: 0.6020000040531158, Top5: 0.8339999973773956
+```
+
+|Accuracy|Frozen Graph      |Quantized Graph   |
+|--------|------------------|------------------|
+|Top1    |0.6320000052452087|0.6020000040531158|
+|Top5    |0.8519999921321869|0.8339999973773956|
+
+A comparison between the frozen and quantized graph is made in the previous table, and the accuracy drop is lower than a 5%.
+
+After evaluation, we perform the dump operation, to compare the DPU results to the CPU/GPU ones. To dump the quantized model, run the `dump.sh` script. The input of this tool is the quantization output used previously in the evaluation process. For the `input_fn` script, the best idea is to use the same script as for quantization, but changing the batch size to 1.
+
+```
+decent_q dump \
+  --input_frozen_graph quantize_results/quantize_eval_model.pb \
+  --input_fn resnet_v1_50_input_fn.calib_input \
+  --max_dump_batches 2 \
+  --dump_float 0 \
+  --output_dir ./quantize_results \
+```
+
+The output of runing the dump functionality, `(decent) $ sh dump.sh`, is now shown.
+
+```
+INFO: Start Dumping for 2 batches
+INFO: Dumping for batch: 1/2 ...
+INFO: Dumping for batch: 2/2 ...
+INFO: Dump results are saved in ./quantize_results.
+```
+
+
+
+--------------------------------------------------------------------
+
+- **Compilation**.
+
+To compile the example for ZedBoard, execute the `dnnc_ZedBoard.sh` script:
+
+```
+sh dnnc_ZedBoard.sh
+```
+
+The content of this script should be the following:
+
+```
+#!/usr/bin/env bash
+
+net="inception_v1"
+CPU_ARCH="arm64"
+DNNC_MODE="debug"
+dnndk_board="ZedBoard"
+dnndk_dcf="../../../dcf/ZedBoard.dcf"
+
+echo "Compiling Network ${net}"
+
+# Work space directory
+work_dir=$(pwd)
+
+# Path of caffe quantization model
+model_dir=${work_dir}/quantize_results
+# Output directory
+output_dir="dnnc_output"
+
+tf_model=${model_dir}/deploy_model.pb
+
+DNNC=dnnc
+
+# Get DNNDK config info
+if [ ! -f /etc/dnndk.conf ]; then
+    echo "Error: Cannot find /etc/dnndk.conf"
+    exit 1
+else
+    tmp=$(grep "DNNDK_VERSION=" /etc/dnndk.conf)
+    dnndk_version=${tmp#DNNDK_VERSION=}
+    dnndk_version=${dnndk_version#v}
+    echo "DNNDK      : $dnndk_version"
+    echo "Board Name : $dnndk_board"
+    echo "DCF file   : $dnndk_dcf"
+fi
+
+if [ ! -d "$model_dir" ]; then
+    echo "Can not found directory of $model_dir"
+    exit 1
+fi
+
+[ -d "$output_dir" ] || mkdir "$output_dir"
+
+echo "CPU Arch   : $CPU_ARCH"
+echo "DNNC Mode  : $DNNC_MODE"
+echo "$(dnnc --version)"
+$DNNC   --parser=tensorflow                         \
+       --frozen_pb=${tf_model}                     \
+       --output_dir=${output_dir}                  \
+       --dcf=${dnndk_dcf}                          \
+       --mode=${DNNC_MODE}                         \
+       --cpu_arch=${CPU_ARCH}                      \
+       --net_name=${net}
+```
+
+After compilation is succesful, the results should be sabed to the `dnnc_output` folder. The message printed in the terminal is the following.
+
+```
+Compiling Network inception_v1
+DNNDK      : 3.1
+Board Name : ZedBoard
+DCF file   : ../../../dcf/ZedBoard.dcf
+CPU Arch   : arm64
+DNNC Mode  : debug
+dnnc version v3.00
+DPU Target : v1.4.0
+Build Label: Aug  9 2019 05:23:25
+Copyright @2019 Xilinx Inc. All Rights Reserved.
+
+[DNNC][Warning] layer [InceptionV1_Logits_SpatialSqueeze] (type: Squeeze) is not supported in DPU, deploy it in CPU instead.
+[DNNC][Warning] layer [InceptionV1_Logits_Predictions_Softmax] (type: Softmax) is not supported in DPU, deploy it in CPU instead.
+
+DNNC Kernel topology "inception_v1_kernel_graph.jpg" for network "inception_v1"
+DNNC kernel list info for network "inception_v1"
+                               Kernel ID : Name
+                                       0 : inception_v1_0
+                                       1 : inception_v1_1
+
+                             Kernel Name : inception_v1_0
+--------------------------------------------------------------------------------
+                             Kernel Type : DPUKernel
+                               Code Size : 0.26MB
+                              Param Size : 6.31MB
+                           Workload MACs : 2996.75MOPS
+                         IO Memory Space : 0.76MB
+                              Mean Value : 0, 0, 0,
+                              Node Count : 76
+                            Tensor Count : 110
+                    Input Node(s)(H*W*C)
+InceptionV1_InceptionV1_Conv2d_1a_7x7_Conv2D(0) : 224*224*3
+                   Output Node(s)(H*W*C)
+InceptionV1_Logits_Conv2d_0c_1x1_Conv2D(0) : 1*1*1001
+
+
+                             Kernel Name : inception_v1_1
+--------------------------------------------------------------------------------
+                             Kernel Type : CPUKernel
+                    Input Node(s)(H*W*C)
+       InceptionV1_Logits_SpatialSqueeze : 1*1*1001
+                   Output Node(s)(H*W*C)
+  InceptionV1_Logits_Predictions_Softmax : 1*1*1001
+```
+
+The compilation process outputs two kernels, one to deploy in the DPU, `inception_v1_0.elf`, and another one to implement in the CPU with the DNNDK APIs. The compilation tool `DNNC` also outputs a graph that ilustrates how to interconnect the kernels.
+
+![alt text]()
 
 
 
@@ -1075,14 +1670,227 @@ $ freeze_graph \
 
 > NOTE: To see all the options of the freeze tool, execute the `freeze_graph --help` command.
 
+The `input_graph` and `input_checkpoint` fields have to be filled up, respectively, with a `.pb` and a `.ckpt` model, which are the result of training a neural network. In this guide we always use already trained models, so these two files are always given as the starting point of an application.
+
+The `input_binary` field is not explained in the DNNDK User Guide, but it is always set to `True` in the User Guide's examples.
+
+One of the fields that has to be covered in this step is the `--output_node_names`. Later on, we will also be using the filed `--input_node_names`. The input and output nodes are the name list of input and output nodes, comma separated, that indicate the start and end points of quantization. The subgraph between them will be quantized if quantizable. It is recommended to place the input nodes at the last parto of the pre-processing stage, and the output nodes at the beggining of the post-procesing stage, as these two parts might have some operators that aren't quantizable amd cam caise errors. The definition of both these parameters can be obtained in the [DNNDK User Guide, pages 57-58](https://www.xilinx.com/support/documentation/sw_manuals/ai_inference/v1_6/ug1327-dnndk-user-guide.pdf).
+
+In order to check the possible `input` and `output` node names of the model, which they are necessary to include in the `freeze_graph.sh` script, you can estimate them using the following command with your pre trained model.
+
+```
+$ decent_q inspect --input_frozen_graph=/tmp/inception_v1_inf_graph.pb
+```
+
+The output of this command would give you a name you can use to fill up the `input_node_names` and `output_node_names` that you will need in several of the steps when creating an aplication for a target board.
+
 
 
 2. Calibration dataset and input function
 The calibration dataset can be obtaind as explained at the end of section [Network Deployment of DNNDK host examples](#network-deployment-of-dnndk-host-examples).
 
-The input function complete
+The `input_fn` field of the quantization tool should take a `int` object as input, indicating the calibration step number, and should return a dict`(placeholder_name, numpy.Array)` object for each call, which is fed into the model's placeholder nodes when running inference. The shape of numpy.array should be consistent with the placeholders.
+The pseudo code example looks like below:
+
+```
+$ “my_input_fn.py”
+def calib_input(iter):
+  “””A function that provides input data for the calibration
+  Args:
+  iter: A `int` object, indicating the calibration step number
+  Returns:
+  dict( placeholder_name, numpy.array): a `dict` object, which will be fed
+  into the model
+  “””
+  image = load_image(iter)
+  preprocessed_image = do_preprocess(image)
+  return {"placeholder_name": preprocessed_images}
+```
+
+Calibration is commonly performed with 100 to 1000 images, but this images aren't preprocessed all together. Usually, at the quantization step you can select the number of iterations of caliration. This indicates how many times you run the `calib_input` function when quantizing a model. Often, the functions within the calibration function used to read and preprocess an image are contained in a loop in order to load more than one image at each iteration. The loop would be run as many times as indicated by a user defined variable known as the `calib_batch_size`, which is defined by the user in the `input_fn.py` function.
 
 
 
 3. Quantization
-  
+Now all the files have been prepared to perform quantization. In order to quantize the model, we are going to use the `decent_q.sh` script.
+
+```
+decent_q quantize \
+  --input_frozen_graph frozen_inception_v1.pb \
+  --input_nodes input \
+  --input_shapes ?,224,224,3 \
+  --output_nodes InceptionV1/Logits/Predictions/Reshape_1 \
+  --input_fn inception_v1_input_fn.calib_input \
+  --method 1 \
+  --gpu 0 \
+  --calib_iter 100 \
+```
+
+- The `input_frozen_graph` field has to be the output of the freeze operation.
+- The `input_nodes` and `output_nodes` fields have to be filled up with the output of the command previously shown when explaining the freeze function, `decent_q inspect`.
+- `input_shapes` field specifies the shape of the input nodes, which must be a four dimension shape for each node. The first dimension would be the batch size, which can be set to unknown `?`. By selecting this option, the batch size can be specified in the `input_fn.py` script as previously specified. The two numbers in the middle, `224x224`, indicates the pixel size of the input images, and the last number indicates the amount of layers of the input node. In the examples of section [Network Deployment of DNNDK host examples](#network-deployment-of-dnndk-host-examples), imaes were formated to RGB, therefore there is only 3 layers.
+- `input_fn` indicates a script that contains the preprocessing routine of the application, as the DPU model doesn't do this step. The preprocessing operations can be added to a python script `.py`, but when indicating the script in quantization, the extension at the quantize call should be `.calib_input`. Do not change the `.py` extension in the script though.
+
+These are the main fields that have to be covered in order to perfor the quantization operation. There is other optional fields. They are carefully explained at the [DNNDK User Guide, pages 57-59](https://www.xilinx.com/support/documentation/sw_manuals/ai_inference/v1_6/ug1327-dnndk-user-guide.pdf). We now mention some of the most important ones.
+
+- `weight_bit` field indicates the bit width for weight and bias. Default is 8.
+- `activation_bit` field indicates the bit width for quantized activation. Default is also 8.
+- The `method` field can be set to 0 ro 1, indicating the method of quantization. Zero stands for non-overflow method, to make sure no values are saturated during quantization, but it might get worse results in the case of outliers. One stands for min-diffs method, allowing saturation to get lower quantization difference and higher tolerance to outliers. Usually ends up with narrower ranges than non-overflow.
+- `calib_iter` indicates how many times the calibration function is executed. If the batch size in the quantization tool is set to unknown, being this value specified in the `input_fn` script, for each iteration performed, the calibration fuction will preprocess as many images as the batch size indicates. The total of images calibration is done with would therefore be the product between `calib_iter` and `calib_batch_size`.
+- `output_dir` is used to specify the directory where the quantization tool saves its output model.
+- `gpu`is where you can indicate the gpu's id when using the `decent` environment for this device. If you aren't using gpu, you can set this field to `0`.
+
+
+
+4. Output and evaluation
+Once the quantization is succesfull, two files are generated in the `output_dir`.
+
+- `deploy_model.pb`. Quantized model to later use with the compilation tool.
+- `quantized_eval_model.pb`. Enables evaluation of the quantized model.
+
+Once quantization is done, an evaluation of the frozen and quantized model can be performed in order to compare the loss in accuracy. This same evaluation could be done in the case of pruning the model. To evaluate the model, we are going to use the python script provided by the DNNDK v3.1 package , which is now shown. In this case we display the script of the inception example, but the resnet50 example has the same evaluation script. This script could be used for any other tensorflow model.
+
+```python
+"""
+Inception_v1 Evaluation Script
+"""
+import os
+import argparse
+import sys
+import tensorflow as tf
+from progressbar import ProgressBar
+from inception_v1_input_fn import eval_input
+from tensorflow.contrib import decent_q
+
+FLAGS = None
+
+
+def inception_v1_eval(input_graph_def, input_node, output_node):
+  """Evaluate classification network graph_def's accuracy, need evaluation dataset"""
+  tf.import_graph_def(input_graph_def, name='')
+
+  # Get input tensors
+  input_tensor = tf.get_default_graph().get_tensor_by_name(input_node + ':0')
+  input_labels = tf.placeholder(tf.float32, shape=[None, FLAGS.class_num])
+
+  # Calculate accuracy
+  output = tf.get_default_graph().get_tensor_by_name(output_node + ':0')
+  prediction = tf.reshape(output, [FLAGS.batch_size, FLAGS.class_num])
+  correct_labels = tf.argmax(input_labels, 1)
+  top1_prediction = tf.nn.in_top_k(prediction, correct_labels, k=1)
+  top5_prediction = tf.nn.in_top_k(prediction, correct_labels, k=5)
+  top1_accuracy = tf.reduce_mean(tf.cast(top1_prediction, 'float'))
+  top5_accuracy = tf.reduce_mean(tf.cast(top5_prediction, 'float'))
+
+  # Start evaluation
+  print("Start Evaluation for {} Batches...".format(FLAGS.eval_batches))
+  with tf.Session() as sess:
+    progress = ProgressBar()
+    top1_sum_acc = 0
+    top5_sum_acc = 0
+    for iter in progress(range(0, FLAGS.eval_batches)):
+      input_data = eval_input(iter, FLAGS.eval_image_dir, FLAGS.eval_image_list,
+                              FLAGS.class_num, FLAGS.batch_size)
+      images = input_data['input']
+      labels = input_data['labels']
+      feed_dict = {input_tensor: images, input_labels: labels}
+      top1_acc, top5_acc = sess.run([top1_accuracy, top5_accuracy], feed_dict)
+      top1_sum_acc += top1_acc
+      top5_sum_acc += top5_acc
+  final_top1_acc = top1_sum_acc / FLAGS.eval_batches
+  final_top5_acc = top5_sum_acc / FLAGS.eval_batches
+  print("Accuracy: Top1: {}, Top5: {}".format(final_top1_acc, final_top5_acc))
+
+
+def main(unused_argv):
+  os.environ["CUDA_VISIBLE_DEVICES"] = FLAGS.gpu
+  input_graph_def = tf.Graph().as_graph_def()
+  input_graph_def.ParseFromString(
+      tf.gfile.FastGFile(FLAGS.input_frozen_graph, "rb").read())
+  inception_v1_eval(input_graph_def, FLAGS.input_node, FLAGS.output_node)
+
+
+if __name__ == "__main__":
+  parser = argparse.ArgumentParser()
+  parser.add_argument(
+      '--input_frozen_graph',
+      type=str,
+      default='frozen_inception_v1.pb',
+      help='frozen pb file.')
+  par4er.add_argument(
+      '--input_node', type=str, default='input', help='input node.')
+  parser.add_argument(
+      '--output_node',
+      type=str,
+      default='InceptionV1/Logits/Predictions/Reshape_1',
+      help='output node.')
+  parser.add_argument(
+      '--class_num', type=int, default=1001, help='number of classes.')
+  parser.add_argument(
+      '--eval_batches',
+      type=int,
+      default=1000,
+      help='number of total batches for evaluation.')
+  parser.add_argument(
+      '--batch_size', type=int, default=50, help='number of batch size.')
+  parser.add_argument(
+      '--eval_image_dir',
+      type=str,
+      default="/home/shengxiao/dataset/imagenet_image/val_resize_256/",
+      help='evaluation image directory.')
+  parser.add_argument(
+      '--eval_image_list',
+      type=str,
+      default="/home/shengxiao/dataset/imagenet_image/val.txt",
+      help='evaluation image list file.')
+  parser.add_argument('--gpu', type=str, default='0', help='gpu device id.')
+  FLAGS, unparsed = parser.parse_known_args()
+  tf.app.run(main=main, argv=[sys.argv[0]] + unparsed)
+```
+
+This script also uses a function from the `input_fn.py` file:
+
+```python
+from inception_v1_preprocessing import *
+
+def eval_input(iter, eval_image_dir, eval_image_list, class_num, eval_batch_size):
+  images = []
+  labels = []
+  line = open(eval_image_list).readlines()
+  for index in range(0, eval_batch_size):
+    curline = line[iter * eval_batch_size + index]
+    [image_name, label_id] = curline.split(' ')
+    image = cv2.imread(eval_image_dir + image_name)
+    image = central_crop(image, 224, 224)
+    image = mean_image_subtraction(image, MEANS)
+    image = normalize(image)
+    images.append(image)
+    labels.append(int(label_id) + 1)
+  lb = preprocessing.LabelBinarizer()
+  lb.fit(range(0, class_num))
+  labels = lb.transform(labels)
+  return {"input": images, "labels": labels}
+```
+
+This function is defined in this script because in this script the functions crop and mean_image_subtraction are imported from the preprocessing script.
+
+
+
+5. Dump quantize simulation quantize results
+Enables comparison of the results between CPU/GPU and the DPU. `Decent_q` supports the dump functionality using the previously created `quantize_eval_model.pb` model from quantization.
+
+The dump tool should be executed as follows:
+
+```
+$ decent_q dump \
+      --input_frozen_graph quantize_results/quantize_eval_model.pb \
+      --input_fn dump_input_fn \
+      --max_dump_batches 1 \
+      --dump_float 0 \
+      --output_dir quantize_reuslts \
+```
+
+- At the `input_fn` field we should indicate a similar script than the one used in quantization, but in this case using a batch size of 1, in order to be consistent with deployment on the DPU. The results of this tool writen in the `output_dir`. This directory will contain a dump result for each batch of input data.
+- `dump_float` is a field that indicates wheter or not to dump unquatized nodes. Zero stands for not dumping this type of node.
+
+For each quantized node, results will be saved in “*...int8.bin*” and “*...int8.txt*” format.
