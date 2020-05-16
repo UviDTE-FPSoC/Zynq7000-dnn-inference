@@ -29,7 +29,7 @@ In this guide it is preteded to explain the whole process to implement DNN infer
     - [Execute examples](#execute-examples)
   - [Network Deployment of DNNDK host examples](#network-deployment-of-dnndk-host-examples)
     - [TensorFlow version of resnet_v1_50](#tensorflow-version-of-resnet_v1_50)
-    - [TensorFlow version of inception_v1](#tensorflow-version-of-inception-v1)
+    - [TensorFlow version of inception_v1](#tensorflow-version-of-inception_v1)
   - [Network Deployment of DNN pre trained model](#network-deployment-of-dnn-pre-trained-model)
     - [Caffe model](#caffe-model)
     - [TensorFlow model](#tensorflow-model)
@@ -1916,4 +1916,3 @@ When compiling a model, there is several parameters that have to be indicated:
 - `output_dir` establishes the output directory of the compiled model.
 
 There are more parameters that can be set, and they are all specified in the [DNNDK User Guide, pages 65-67](https://www.xilinx.com/support/documentation/sw_manuals/ai_inference/v1_6/ug1327-dnndk-user-guide.pdf).
-  
