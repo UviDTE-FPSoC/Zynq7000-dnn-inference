@@ -1,4 +1,4 @@
-This document intends to be a guide which shows the process to use the Xilinx Edge AI tools with a ZedBoard SoC device. Most of the documentation, tutorials and examples provided by Xilinx in order to use their AI libraries and tools have been created for boards with Zynq MPSoCs Ultrascale+ chips and others. Never the less, the hardware IP block created by Xilinx to run DNN inference on their boards, the Deep Learning Procesing Unit (DPU), supports its implementation on Zynq-7000 family chips. ZedBoard mouns a Z-7020 chip, which is compatible with this hardware description block.
+  This document intends to be a guide which shows the process to use the Xilinx Edge AI tools with a ZedBoard SoC device. Most of the documentation, tutorials and examples provided by Xilinx in order to use their AI libraries and tools have been created for boards with Zynq MPSoCs Ultrascale+ chips and others. Never the less, the hardware IP block created by Xilinx to run DNN inference on their boards, the Deep Learning Procesing Unit (DPU), supports its implementation on Zynq-7000 family chips. ZedBoard mouns a Z-7020 chip, which is compatible with this hardware description block.
 
 In this guide it is preteded to explain the whole process to implement DNN inference on Zedboard. Software tools that have to be installed, creation of the hardware description project, configuration of an Operating System project to use this harware description with the ZedBoard, installation of Edge AI compilation tools and inference of several DNN models such as mobilenetv1, mobilenetv2 and inceptionv1.
 
@@ -1323,6 +1323,7 @@ Accuracy: Top1: 0.6320000052452087, Top5: 0.8519999921321869
 ```
 
 - **Prepare floating-point frozen model and dataset**.
+
 The image pre-processing is not included in the `.pb` output of the frozen graph. The application is going to need this pre-processing, therefore it is included in the `inception_v1_input_fn.py` python script. This script crops the images to a `224x224` size and performs mean_substraction, but the user can define any preprocesing sequence they need.
 
 ```python
@@ -1408,6 +1409,7 @@ def normalize(image):
 --------------------------------------------------------------------
 
 - **Quantization**.
+
 To run quantization, execute the `decent_q.sh` script.
 
 ```
@@ -1634,6 +1636,106 @@ The compilation process outputs two kernels, one to deploy in the DPU, `inceptio
 
 
 
+--------------------------------------------------------------------
+
+- **Programming the application**.
+
+This section is a guide to create an easy program to run the inception_v1 neural network, that was compiled in the host machine, in ZedBoard. The program is created in C/C++, as the DNNDK APIs have a better performance with this language rather than with Python. Äll the necesary functions needed to run the DPU for one image and establish its communication with the CPU will be explained. The actual code can be found at the end of this section. All the include libraries are indicated with the code.
+
+The code for managing the DPU kernels and tasks is programmed in the `main` function. An example of the structure of this fuction can be found in [DNNDK User Guide, page 51](https://www.xilinx.com/support/documentation/sw_manuals/ai_inference/v1_6/ug1327-dnndk-user-guide.pdf).
+
+- `DPUKernel` is a custom datatype to create a pointer for the DPU kernel.
+- `DPUTask` is a custom datatype to create a pointer for the DPU task.
+- `dpuOpen()` function that attaches and opens the DPU device before the utilization of DPU resources.
+- `dpuLoadKernel()` loads a DPU kernel for the specified neural network from hybrid CPU+DPU binary executable into DPU memory space, including Kernel’s DPU instructions, weight and bias. The function has an argument, which is the name of the DPU kernel outputed by the DNNC compiler. In this case the name would be `inception_v1_0`. The API outputs a pointer to the loaded DPU kernel if succesful.
+- `dpuCreateTask()` instantiates a DPU task from DPU Kernel and allocates corresponding DPU memory buffer. It takes a pointer to the kernel as a parameter. It is possible to indicate the mode of the task between the normal mode, which is default, profiling mode, that outputs performance information layer by layer, or dump mode, which dumps raw data for the DPU task. This last two modes are only available if the DNNC tool compiled the model in debug mode.
+- `dpuDestroyTask()` destroys the DPU task and releases its resources. It takes the pointer of the task as an argument. Returns a 0 on success or negative value in failure.
+- `dpuDestroyKernel()` destroys the DPU kernel and releases its resources. Takes as an argument the pointer to the kernel. Retuns a 0 if success.
+- `dpuClose()` detaches and closes the DPU device file.
+
+Once the task has been created, a function is created to run image pre-processing, post-processing, DPU non-supported layers and inference.
+
+- **runInception_v1**
+
+It is the void function where the images are prepared for the neural network and the inference is actually ran. This function is going to call several others that are the ones responsible for performing pre-processing, post-processing and execution of the DPU non-suported layers. An argument containing a pointer to the created task is needed by this function.
+
+- `LoadImageNames` is a void function that takes as argument a string with the path, within the target board, where the inference images are stored. It also takes a vector as an argument, which is going to fill up with the names of the images inside the inputed path.
+
+First of all, in the function is important to check if the path is a valid directory path. The function `lstat()` is used for this matter, from the library `sys/stat.h`. This function returns a `stat` structure:
+
+```
+struct stat {
+    dev_t     st_dev;     /* ID of device containing file */
+    ino_t     st_ino;     /* inode number */
+    mode_t    st_mode;    /* protection */
+    nlink_t   st_nlink;   /* number of hard links */
+    uid_t     st_uid;     /* user ID of owner */
+    gid_t     st_gid;     /* group ID of owner */
+    dev_t     st_rdev;    /* device ID (if special file) */
+    off_t     st_size;    /* total size, in bytes */
+    blksize_t st_blksize; /* blocksize for file system I/O */
+    blkcnt_t  st_blocks;  /* number of 512B blocks allocated */
+    time_t    st_atime;   /* time of last access */
+    time_t    st_mtime;   /* time of last modification */
+    time_t    st_ctime;   /* time of last status change */
+};
+```
+
+`lstat()` takes a C-format string with the path of a file and a stat structure object as arguments, and writes information of that file in the object. To check if the path is valid, therefore, if it is a directory, the function `S_SDIR()` can be used. This fuction takes the `st_mode` field of the stat object as an argument, returning a zero if the path indicated in the function `lstat()` is a directory. If the fuction returns a negative value, the `LoadImageNames` function should be exited. Otherwise, the directory is valid and the function can continue executing.
+
+Now you can open the directory with the fuction `opendir()` from the library `sys/types.h` and read it, `readdir()`. This last function returns a dirent structure. If this structure is equal to null (nullptr), this means the directory is empty, or that you reached the end of the directory, so you should close the directory stream with `closedir()`. The dirent structure is defined in the `dirent.h` library:
+
+```
+struct dirent {
+               ino_t          d_ino;       /* Inode number */
+               off_t          d_off;       /* Not an offset; see below */
+               unsigned short d_reclen;    /* Length of this record */
+               unsigned char  d_type;      /* Type of file; not supported
+                                              by all filesystem types */
+               char           d_name[256]; /* Null-terminated filename */
+           };
+```
+
+This structure will contain the name of the content of the directory, which in this case are the images we want a list of. The only thing remaining will be to extract this name and add it to a vector that the actual `runInception_v1` function can use.
+
+- `LoadWords()` is a void function used to obtain the name of all the possible labels in the images directory, where there is a .txt file containing this information.
+
+To open the file, an `fstream` object is used. `fstream` is a datatype that represents the file stream generally, and has the capabilities of both ofstream and ifstream, which means it can create files, write information to files, and read information from files. Using this datatype with the `getline()` function, the whole .txt file can be read.
+
+Once the pre-processing is done, we need to start inference on the DPU. Before this, remember that for this model, the softmax layer has to be programed for the CPU, therefore, it is neccessary to know how many channesl are output by the output node of the DPU kernel.
+
+- `dpuGetOutputTensorCannel()` is the function that enables counting this number. It gets the total number of output tensor for the DPU task. It's arguments are a pointer to the DPU task and the output boundary node name. This name was previously obtained when running the DNNC tool. In this case, the name of the node is `InceptionV1_Logits_Conv2d_0c_1x1_Conv2D`.
+
+Once we know the number, create an array of `float` datatype with enough memory allocated.
+
+Finally, to run inference of all the images in your images directory, create a loop where you need to follow this process.
+
+- Load and do the preprocessing of the image.
+
+- Load the preprocessed image into the DPU with the API `dpuSetInputImage2()`. The image can be loaded to the DPU without specifying its mean value. Its arguments are a pointer to the DPU task, the name of the input node and the image itself as a Mat object. The Mat datatype can be used with the opencv library.                      
+
+- Run inference on the DPU. This operation is executed with the API `dpuRunTask()`, and its only argument is a pointer to the DPU task.
+
+- It can be interesting to obtain the execution time in micro-seconds at the DPU. Use the `dpuGetTaskProfile()` API. This function gets the time value after the running of the task. It's only argument is the DPU task pointer.
+
+- Once the task has been run, we need to get the output tensor. This can be done using the API `dpuGetOutputTensorInHWCFP32`, obtaining the result to be used with the CPU in (Height*Width*Channel) format and with a datatype of float32. Its arguments are a pointer to the DPU task, a pointer to the DPU output node name, the start addres of CPU memory block for storing output Tensor's data, the size of the output in bytes and the index of a sinble output tensor for the Node, with a default value of 0. The best way of indicating the CPU memory address block is creating a float pointer to an array with as many cells as channels the output tensor has. The number of channels were previously obtained with the API `dpuGetOutputTensorCannel()`.
+
+- Calculate spatial squeeze layer.
+
+- Calculate the softmax layer in the DPU, as there is no support for it in the DPU. This function should get the output Tensor array obtained in the previous step, including the size of the array and a new pointer to an array where it is possible to retrieve the solution of the layer. In this fuction it is neccesary to operate the softmax fuction, which can be retrieved from the book [Pattern Recognition and Machine Learning, page 2.9, section 4.3.4, ecuation 4.104](https://www.academia.edu/40339604/Pattern_Recognition_And_Machine_Learning_Information_Science_And_Statistics_by_Christopher_M.-Bish). The ecuation itself is the following, considering `y` is the output array with the size of the Tensor chanels, `a` is the data with the tensor information obtained from the DPU, `k` is the current cell number and `j` is the total number of channels.
+
+![alt text](https://raw.githubusercontent.com/UviDTE-FPSoC/vitis-dnn/master/ZedBoard_DNNs/GuideImages/Softmax_Ecuation.png)
+
+- Finally, create a function that shows you the top results of the cells
+
+
+
+
+
+
+
+
+
 ### Network Deployment of DNN pre trained model
 This section tends to explain how the creation of a custom application, similar to the ones showed in the previous sections, has to be created and configured in order to be able to be executed in the ZedBoard. All the necessary steps are going to be indicated for both Caffe and Tensorflow frameworks.
 
@@ -1656,7 +1758,8 @@ To download a pre-trained model you can use the model zoo repository [here](http
 
 The `DECENT_Q` environment needs to create a series of files to be able to properly execute pruning and quantization. This files would be the `frozen_graph.pb`, the `calibration dataset` and the `Input_fn`.
 
-1. Freeze the network.
+1. **Freeze the network.**
+
 The `frozen_graph.pb` is a file which contains the pre-trained DNN model but with all its variables converted to constant values. This file is created from the `.pb` file given by the pre-trained model, and a set of checkpoint files, `.ckpt`. In order to handle this conversion, TensorFlow provides a `freeze_graph.py` script which is installed with `DECENT_Q`. To use this tool, you can execute the following commands or copy them into a `.sh` file, in order to execute them all together.
 
 ```
@@ -1686,7 +1789,8 @@ The output of this command would give you a name you can use to fill up the `inp
 
 
 
-2. Calibration dataset and input function
+2. **Calibration dataset and input function**
+
 The calibration dataset can be obtaind as explained at the end of section [Network Deployment of DNNDK host examples](#network-deployment-of-dnndk-host-examples).
 
 The `input_fn` field of the quantization tool should take a `int` object as input, indicating the calibration step number, and should return a dict`(placeholder_name, numpy.Array)` object for each call, which is fed into the model's placeholder nodes when running inference. The shape of numpy.array should be consistent with the placeholders.
@@ -1711,7 +1815,8 @@ Calibration is commonly performed with 100 to 1000 images, but this images aren'
 
 
 
-3. Quantization
+3. **Quantization**
+
 Now all the files have been prepared to perform quantization. In order to quantize the model, we are going to use the `decent_q.sh` script.
 
 ```
@@ -1742,7 +1847,8 @@ These are the main fields that have to be covered in order to perfor the quantiz
 
 
 
-4. Output and evaluation
+4. **Output and evaluation**
+
 Once the quantization is succesfull, two files are generated in the `output_dir`.
 
 - `deploy_model.pb`. Quantized model to later use with the compilation tool.
@@ -1876,7 +1982,8 @@ This function is defined in this script because in this script the functions cro
 
 
 
-5. Dump quantize simulation quantize results
+5. **Dump quantize simulation quantize results**
+
 Enables comparison of the results between CPU/GPU and the DPU. `Decent_q` supports the dump functionality using the previously created `quantize_eval_model.pb` model from quantization.
 
 The dump tool should be executed as follows:
@@ -1897,16 +2004,37 @@ For each quantized node, results will be saved in “*...int8.bin*” and “*..
 
 --------------------------------------------------------------------------
 
-- **Network compilation**. The architecture of the Deep Neural Network Compiler (DNNC) compiler consists of a parser, an optimizer and a code-generator. The front-end parser is responsible for parsing the Caffe/TensorFlow model and generates an intermediate representation (IR) of the input model. The optimizer handles optimizations based on the IR, and the code generator maps the optimized IR to DPU instructions.
+- **Network compilation**.
+
+The architecture of the Deep Neural Network Compiler (DNNC) compiler consists of a parser, an optimizer and a code-generator. The front-end parser is responsible for parsing the Caffe/TensorFlow model and generates an intermediate representation (IR) of the input model. The optimizer handles optimizations based on the IR, and the code generator maps the optimized IR to DPU instructions.
 
 The compilation process has two very important steps:
 
-1. DLet
-This tool is used to charge your Vivado project DPU configuration in the DNNC compiler.
+1. **DLet**
+
+This tool is used to parse and extract varios DPU configuration parameters from the DPU Hardware Handoff file, `HWH`, generated by your vivado projet.
+
+The `HWH` file is located in the following directory, considering that the name of the project created previously in this guide is `ZedBoard_DPU_2019_2`.
+
+```
+cd /<vivado_project_location>/ZedBoard_DPU_2019_2.srcs/sources_1/bd/design_1/hw_handoff/
+```
+
+> NOTE: The *desing_1* folder has the name of the block design the DPU was icluded into. If you have several, make sure you select the correct one.
+
+The file is going to have the same name as the block desing the DPU was included into, `design_1.hwh` in this case. With this file, DLet is able to generate the configuration `.dfc` file needed by the compiler to corretly create the DPU kernel. To generate this file, enter the directory you want your `.dfc` file to be writen to, and execute the following commands in the terminal.
+
+```
+dlet -f /<vivado_project_location>/ZedBoard_DPU_2019_2.srcs/sources_1/bd/design_1/hw_handoff/design_1.hwh
+```
+
+The `.dfc` file is created a name that contains the date the `.hwh` was created.
+
+> NOTE: The DPU IP block used in the Vivado project has to come from the DPU TRD v3.0 or higher in order to be compatible with the DNNDK v3.1 package.
 
 
+2. **Compilation**
 
-2. Compilation
 When compiling a model, there is several parameters that have to be indicated:
 
 - `parser` can be filled up with two options, *caffe* or *tensorflow*. Depending on the model framework, you have to chose one or the otherone. If using a Caffe model, you have to indicate two more fields, `prototxt` and `caffemodel`, where you have to indicate the location of the prototxt and caffemodel files. If using TensorFlow, you have to indicate the `frozen_pb` field, where you should indicate the location of your deploy_model.pb file.
@@ -1916,3 +2044,132 @@ When compiling a model, there is several parameters that have to be indicated:
 - `output_dir` establishes the output directory of the compiled model.
 
 There are more parameters that can be set, and they are all specified in the [DNNDK User Guide, pages 65-67](https://www.xilinx.com/support/documentation/sw_manuals/ai_inference/v1_6/ug1327-dnndk-user-guide.pdf).
+
+--------------------------------------------------------------------------
+
+- **Programing with APIs**.
+
+In this section the programing model of the DPU is explainded with detail.
+
+1. **DPU Kernel**.
+
+The DPU kernel is created with the DNNC tool, after compiling a frozen graph with a given DPU configuration. This operation transforms the neural network model into an equivalent DPU assembly file, which is then assembled into an ELF object. From the prespective of the runtime application, this file becomes the execution unit for N2Cube ater invoquint the API `dpuLoadKernel()`. N2Cube loads the DPU kernel, including DPU instructions and network parameters into the DPU dedicated memory space, allocating hardware resources. After that, each DPU kernel can be instantiated into several DPU tasks by calling `dpuCreateTask()` to enable multithreaded programming.
+
+2. **DPU Task**.
+
+Each DPU task used is a running entity of the DPU kernel. It has its own memory space so that multithreaded applications can be used to process several tasks in paralell.
+
+3. **DPU Node**.
+
+A DPU node is a basic element of the network. It's associated to an input, output and some parameters. Each node has a unique name and the APIs are able to access their information. There is three tyes of nodes; boundary input or output node and internal node.
+
+- Boundary input node doesn't have a precursor in the kernel topology. It is usually the first node of the kernel, and there could be more than one.
+- Boundary output node doesn have a successor.
+- The rest of the nodes would be labeled as internal nodes.
+
+After compilation, the DNNC tool gives information about the input and output nodes of each kernel. An example is now displayed.
+
+```
+Compiling Network inception_v1
+DNNDK      : 3.1
+Board Name : ZedBoard
+DCF file   : ../../../dcf/ZedBoard.dcf
+CPU Arch   : arm64
+DNNC Mode  : debug
+dnnc version v3.00
+DPU Target : v1.4.0
+Build Label: Aug  9 2019 05:23:25
+Copyright @2019 Xilinx Inc. All Rights Reserved.
+
+[DNNC][Warning] layer [InceptionV1_Logits_SpatialSqueeze] (type: Squeeze) is not supported in DPU, deploy it in CPU instead.
+[DNNC][Warning] layer [InceptionV1_Logits_Predictions_Softmax] (type: Softmax) is not supported in DPU, deploy it in CPU instead.
+
+DNNC Kernel topology "inception_v1_kernel_graph.jpg" for network "inception_v1"
+DNNC kernel list info for network "inception_v1"
+                               Kernel ID : Name
+                                       0 : inception_v1_0
+                                       1 : inception_v1_1
+
+                             Kernel Name : inception_v1_0
+--------------------------------------------------------------------------------
+                             Kernel Type : DPUKernel
+                               Code Size : 0.26MB
+                              Param Size : 6.31MB
+                           Workload MACs : 2996.75MOPS
+                         IO Memory Space : 0.76MB
+                              Mean Value : 0, 0, 0,
+                              Node Count : 76
+                            Tensor Count : 110
+                    Input Node(s)(H*W*C)
+InceptionV1_InceptionV1_Conv2d_1a_7x7_Conv2D(0) : 224*224*3
+                   Output Node(s)(H*W*C)
+InceptionV1_Logits_Conv2d_0c_1x1_Conv2D(0) : 1*1*1001
+
+
+                             Kernel Name : inception_v1_1
+--------------------------------------------------------------------------------
+                             Kernel Type : CPUKernel
+                    Input Node(s)(H*W*C)
+       InceptionV1_Logits_SpatialSqueeze : 1*1*1001
+                   Output Node(s)(H*W*C)
+  InceptionV1_Logits_Predictions_Softmax : 1*1*1001
+```
+
+The kernel `inception_v1_0`, which is a DPU kernel, has as input node the `InceptionV1_InceptionV1_Conv2d_1a_7x7_Conv2D(0)`, and as an output node the `InceptionV1_Logits_Conv2d_0c_1x1_Conv2D(0)`.
+
+When using the API `dpuGetInputTensor()`, the `nodeName` parameter is required to specify the boundary input node. DNNDK will generate an error if a node which is not a boundary input node is indicated in the `nameNode` field. A similar error will happen when using the `dpuGetOutputTensor()` API.
+
+4. **DPU Tensor**.
+
+The DPU tensor is a set of multidimensional data used to store information while running an application. For DPU, memory storage layout for input tensor and output tensor is in the format of HWC (Height*Width*Channel), while a standard image usually has a CHW format (Channel*Height*Width). This is important when inputing or retreiving information from the DPU.
+
+Applications can be created using C/C++ APIs, for which it is necessary to create the pre and post processing routines as well as the main application. In this release though, there is the posibility of using Python APIs as well, what enables reusing the preprocessing routine used during compression and compilation.
+
+When programming for the DPU, is very common to exchange data between the CPU and the DPU. A clear example happens when data is pre-processed in the CPU and fed into the DPU to execute the neural network compatible layers. This communication also happens if any layers of the neural network aren't compatible with the DPU, in which case they have to be executed in the CPU. To handle this type of operations, DNNDK provides a set of APIs to facilitate the eschange of information.
+
+DNNDK APIs to set input tensor for the computation layer or node:
+- dpuSetInputTensor()
+- dpuSetInputTensorInCHWInt8()
+- dpuSetInputTensorInCHWFP32()
+- dpuSetInputTensorInHWCInt8()
+- dpuSetInputTensorInHWCFP32()
+
+DNNDK APIs to get output tensor from the computation layer or node:
+- dpuGetOutputTensor()
+- dpuGetOutputTensorInCHWInt8()
+- dpuGetOutputTensorInCHWFP32()
+- dpuGetOutputTensorInHWCInt8()
+- dpuGetOutputTensorInHWCFP32()
+
+DNNDK provides the following APIs to get the start address, size, quantization factor, and shape info for DPU input and output tensor:
+- dpuGetTensorAddress()
+- dpuGetTensorSize()
+- dpuGetTensorScale()
+- dpuGetTensorHeight()
+- dpuGetTensorWidth()
+- dpuGetTensorChannel()
+
+5. **TensorFlow Model**.
+
+This framework enables using very flexible pre-processing routines, with input images in BGR or RGB format. Therefore, the pre-defined APIs in the library `libdputils.so` cannot be used directly when deploying TenorFlow models. This means the users have to implement the pre-processing code themselves.
+
+Although both languages are suported, C++ gives a better performance, so it is recommended to port the final applications to C++.
+
+--------------------------------------------------------------------------
+
+- **DPU Hybrid Compilation**.
+
+Applications developed for the DPU are heterogeneus programs that have code running on the target CPU and code running on the DPU. The code for CPU can be created with C/C++ language and later on be processed by a compiler such as GCC. The neural network, on the other hand, is compiled by DNNC for the DPU. In the final stage of the application, these codes have to be linked togetherby a linker such as GCC, to produce a single hybrid binary executable..
+
+1. **DPU Shared Library**.
+
+In some cases DPU ELF files cannot be linked with the CPU code. One case is when the CPU code is created with the Python APIs. In these cases, after the Caffe or TensorFlow models are compiled to DPU ELF files, the users have to use ARM GCC toolchain to transform them into DPU shared libraries.
+
+For x64 host system, ARM cross toolchain like `aarch64-linux-gnu-gcc for 64-bit` ARM or `arm-linux-gnu-gcc` for 32-bit ARM can be used. For DNNDK evaluation boards, gcc toolchain can be used. The command samples for ResNet50 look as the followings:
+
+```
+aarch64-linux-gnu-gcc -fPIC -shared \
+    dpu_resnet50_*.elf -o libdpumodelresnet50.so
+```
+
+By using the `*`, all the DPU ELF files are covered and wrapped into the `libdpumodelresnet50.so`. This is useful when the DNNC compiler outputs more than one DPU kernel.  Moreover, for each neural network model, each DPU ELF files should be linked in one unique shared library. If there is more than one neural network model in one DNNDK application, users must create as many shared libraries as models are. This libraries should be placed in the same folder of the DNNDK application.
