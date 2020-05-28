@@ -34,7 +34,7 @@ In this guide it is preteded to explain the whole process to implement DNN infer
     - [Caffe model](#caffe-model)
     - [TensorFlow model](#tensorflow-model)
   - [Model Zoo repository](#model-zoo-repository)
-    -[TensorFlow: Inception_v4](#tensoflow:-inception_v4)
+    -[TensorFlow: Inception_v3](#tensoflow:-inception_v4)
 
 
 
@@ -2183,8 +2183,8 @@ This section is dedicated to port model-zoo repository pre-trained models to Zed
 
 
 
-#### TensorFlow: Inception_v4
-The first step to create an application for the TensorFlow inception_v4 model is to donwload the pre-trained model [here](https://www.xilinx.com/bin/public/openDownload?filename=tf_mobilenetv1_0.25_imagenet_128_128_1.1.zip). The name of this model in the repository is `tf_inceptionv4_imagenet_299_299_24.55G_1.1`. This name indicates that the model uses the TensorFlow framework, `tf`, the name of the network itself, `inceptionv4`, the dataset it was trained with, `imagenet`, the size of the images it was trained with, `299x299`, the computation of the model (how many GPOS per image), `24.55G` and the version of Vitis-AI the network was trained for, `v1.1`.
+#### TensorFlow: Inception_v3
+The first step to create an application for the TensorFlow inception_v4 model is to donwload the pre-trained model [here](https://www.xilinx.com/bin/public/openDownload?filename=tf_inceptionv3_imagenet_299_299_1.1.zip). The name of this model in the repository is `tf_inceptionv3_imagenet_299_299_11.45G_1.1`. This name indicates that the model uses the TensorFlow framework, `tf`, the name of the network itself, `inceptionv4`, the dataset it was trained with, `imagenet`, the size of the images it was trained with, `299x299`, the computation of the model (how many GPOS per image), `11.45G` and the version of Vitis-AI the network was trained for, `v1.1`.
 
 In this application the target device is a ZedBoard, therefore we are using the DNNDK v3.1 rather than Vitis-AI v1.1, which won't be a problem at all.
 
@@ -2195,7 +2195,7 @@ In this application the target device is a ZedBoard, therefore we are using the 
 The quantization of the model requires two main steps. First of all, the pre-processing of the calibration images, due to the fact that they are not pre-processed in the frozen graph. To do this task, we create two python scripts, one with the operations that are going to take place, and another one with the definition of the functions.
 
 ```python
-from inception_v4_preprocessing import *
+from inception_v3_preprocessing import *
 
 # calib_image_dir = "../../calibration_data/imagenet_images/"
 calib_image_dir = "/media/arroas/HDD/MinhasCousas/EEI/Mestrado/2_Curso/TFM/Inference_Images/calibration_data/imagenet_images/"
@@ -2258,25 +2258,25 @@ Once the pre-processing script is ready, a quantization script is going to be cr
 ```
 cd float
 
-decent_q inspect --input_frozen_graph inception_v1_inf_graph.pb
+decent_q inspect --input_frozen_graph inception_v3.pb
 ```
 
 One possibility for both the input and the output node is found.
 
 ```
 Found 1 possible inputs: (name=input, type=float(1), shape=[?,299,299,3])
-Found 1 possible outputs: (name=InceptionV4/Logits/Predictions, op=Softmax)
+Found 1 possible outputs: (name=InceptionV3/Predictions/Reshape_1, op=Reshape)
 ```
 
 With this information, create the quantization script, making sure you input the correct image sizes, node names and frozen graph input.
 
 ```
 decent_q quantize \
-  --input_frozen_graph ./float/inception_v4.pb \
+  --input_frozen_graph ./float/inception_v3.pb \
   --input_nodes input \
   --input_shapes ?,299,299,3 \
-  --output_nodes InceptionV4/Logits/Predictions \
-  --input_fn inception_v4_input_fn.calib_input \
+  --output_nodes InceptionV3/Predictions/Reshape_1 \
+  --input_fn inception_v3_input_fn.calib_input \
   --method 1 \
   --gpu 0 \
   --calib_iter 100 \
@@ -2288,9 +2288,10 @@ Run the quantization script, `sh decent_q.sh`, which should print this output if
 INFO: Checking Float Graph...
 INFO: Float Graph Check Done.
 INFO: Calibrating for 100 iterations...
-100% (100 of 100) |######################| Elapsed Time: 0:02:31 Time:  0:02:31
+100% (100 of 100) |######################| Elapsed Time: 0:01:21 Time:  0:01:21
 INFO: Calibration Done.
 INFO: Generating Deploy Model...
+[DEPLOY WARNING] Node InceptionV3/Predictions/Reshape_1(Type: Reshape) is not quantized and cannot be deployed to DPU,because it has unquantized input node: InceptionV3/Predictions/Softmax. Please deploy it on CPU.
 INFO: Deploy Model Generated.
 ********************* Quantization Summary *********************      
 INFO: Output:       
@@ -2298,10 +2299,10 @@ INFO: Output:
   deploy_model: ./quantize_results/deploy_model.pb
 ```
 
-Once the quantization model has been correctly created, we are going to evaluate both the frozen and quantized models and compare the loss in accuracy. To do this we use the evaluation script from section [TensorFlow model](#tensorflow-model), subsection 4, Output and Evaluation. Copy the code to a python script in your inception_v4 model directory, and make sure the input_fn.py script call within the code has the correct name, which in this case should be `inception_v4_input_fn.py`, rather than `inception_v1_input_fn.py`. Now, add to the beggining of your `inception_v4_input_fn.py` the following code needed for the evaluation.
+Once the quantization model has been correctly created, we are going to evaluate both the frozen and quantized models and compare the loss in accuracy. To do this we use the evaluation script from section [TensorFlow model](#tensorflow-model), subsection 4, Output and Evaluation. Copy the code to a python script in your inception_v4 model directory, and make sure the input_fn.py script call within the code has the correct name, which in this case should be `inception_v3_input_fn.py`, rather than `inception_v1_input_fn.py`. Now, add to the beggining of your `inception_v3_input_fn.py` the following code needed for the evaluation.
 
 ```python
-from inception_v4_preprocessing import *
+from inception_v3_preprocessing import *
 
 def eval_input(iter, eval_image_dir, eval_image_list, class_num, eval_batch_size):
   images = []
@@ -2342,10 +2343,10 @@ IMAGE_LIST=/media/arroas/HDD/MinhasCousas/EEI/Mestrado/2_Curso/TFM/Inference_Ima
 EVAL_BATCHES=10		#1000
 BATCH_SIZE=50
 
-python inception_v4_eval.py \
-  --input_frozen_graph float/inception_v4.pb \
+python inception_v3_eval.py \
+  --input_frozen_graph float/inception_v3.pb \
   --input_node input \
-  --output_node InceptionV4/Logits/Predictions \
+  --output_node InceptionV3/Predictions/Reshape_1 \
   --eval_batches $EVAL_BATCHES \
   --batch_size $BATCH_SIZE \
   --eval_image_dir $IMAGE_DIR \
@@ -2357,8 +2358,8 @@ You can copy the avobe code and save it wiht the extension `.sh` and run it with
 
 ```
 Start Evaluation for 10 Batches...
-100% (10 of 10) |########################| Elapsed Time: 0:00:50 Time:  0:00:50
-Accuracy: Top1: 0.7599999904632568, Top5: 0.9459999978542328
+100% (10 of 10) |########################| Elapsed Time: 0:00:30 Time:  0:00:30
+Accuracy: Top1: 0.7519999980926514, Top5: 0.9380000054836273
 ```
 
 Now, repeat the same proccess -for the quantization model.
@@ -2377,10 +2378,10 @@ IMAGE_LIST=/media/arroas/HDD/MinhasCousas/EEI/Mestrado/2_Curso/TFM/Inference_Ima
 EVAL_BATCHES=10		#1000
 BATCH_SIZE=50
 
-python inception_v4_eval.py \
+python inception_v3_eval.py \
   --input_frozen_graph quantize_results/quantize_eval_model.pb \
   --input_node input \
-  --output_node InceptionV4/Logits/Predictions \
+  --output_node InceptionV3/Predictions/Reshape_1 \
   --eval_batches $EVAL_BATCHES \
   --batch_size $BATCH_SIZE \
   --eval_image_dir $IMAGE_DIR \
@@ -2392,14 +2393,14 @@ The result of the evalutaion should be similar to this one.
 
 ```
 Start Evaluation for 10 Batches...
-100% (10 of 10) |########################| Elapsed Time: 0:02:10 Time:  0:02:10
-Accuracy: Top1: 0.7480000078678131, Top5: 0.9460000038146973
+100% (10 of 10) |########################| Elapsed Time: 0:01:13 Time:  0:01:13
+Accuracy: Top1: 0.7440000057220459, Top5: 0.9340000033378602
 ```
 
 |Accuracy|Frozen Graph      |Quantized Graph   |
 |--------|------------------|------------------|
-|Top1    |0.7599999904632568|0.7480000078678131|
-|Top5    |0.9459999978542328|0.9460000038146973|
+|Top1    |0.7519999980926514|0.7440000057220459|
+|Top5    |0.9380000054836273|0.9340000033378602|
 
 -----------------------------------------------------------------------------
 
@@ -2408,9 +2409,9 @@ Accuracy: Top1: 0.7480000078678131, Top5: 0.9460000038146973
 The compilation process is performed with the DNNC tool, for which we create the following script.
 
 ```
-#!/usr/bin/env bash
+##!/usr/bin/env bash
 
-net="inception_v4"
+net="inception_v3"
 CPU_ARCH="arm32"
 DNNC_MODE="debug"
 dnndk_board="ZedBoard"
@@ -2422,7 +2423,7 @@ echo "Compiling Network ${net}"
 work_dir=$(pwd)
 
 # Path of tensorflow quantization model
-model_dir=${work_dir}/quantized
+model_dir=${work_dir}/quantize_results
 # Output directory
 output_dir="dnnc_output"
 
@@ -2462,10 +2463,10 @@ $DNNC   --parser=tensorflow                         \
        --net_name=${net}
 ```
 
-When creating a ZedBoard application it is important to make sure the CPU Arch selected is `arm32`, otherwise the DPU model won't work. The output of the compilation tool should be the following:
+When creating a ZedBoard application it is important to make sure the CPU Arch selected is `arm32`, otherwise the DPU model won't work. It is also important to specify where is your board `.dcf` file located. If you are using the Petalinux Xilinx image for ZedBoard that can be donwloaded [here](https://www.xilinx.com/products/design-tools/ai-inference/ai-developer-hub.html#edge), you'll find this file in the `<dnndk_package_v3.1_directory>/host_x86/dcf/ZedBoard.dcf`. If you have a custom project, you can generate the `.dcf` file with the `DLet` tool explained in section [TensorFlow model](#tensorflow-model), subsection `Network Compilation >> 1. DLet`. The output of the compilation tool should be the following:
 
 ```
-Compiling Network inception_v4
+Compiling Network inception_v3
 DNNDK      : 3.1
 Board Name : ZedBoard
 DCF file   : ZedBoard.dcf
@@ -2476,40 +2477,41 @@ DPU Target : v1.4.0
 Build Label: Aug  9 2019 05:23:25
 Copyright @2019 Xilinx Inc. All Rights Reserved.
 
-[DNNC][Warning] layer [InceptionV4_Logits_Predictions] (type: Softmax) is not supported in DPU, deploy it in CPU instead.
+[DNNC][Warning] layer [InceptionV3_Logits_SpatialSqueeze] (type: Squeeze) is not supported in DPU, deploy it in CPU instead.
+[DNNC][Warning] layer [InceptionV3_Predictions_Softmax] (type: Softmax) is not supported in DPU, deploy it in CPU instead.
 
-DNNC Kernel topology "inception_v4_kernel_graph.jpg" for network "inception_v4"
-DNNC kernel list info for network "inception_v4"
+DNNC Kernel topology "inception_v3_kernel_graph.jpg" for network "inception_v3"
+DNNC kernel list info for network "inception_v3"
                                Kernel ID : Name
-                                       0 : inception_v4_0
-                                       1 : inception_v4_1
+                                       0 : inception_v3_0
+                                       1 : inception_v3_1
 
-                             Kernel Name : inception_v4_0
+                             Kernel Name : inception_v3_0
 --------------------------------------------------------------------------------
                              Kernel Type : DPUKernel
-                               Code Size : 1.12MB
-                              Param Size : 40.67MB
-                           Workload MACs : 24507.95MOPS
-                         IO Memory Space : 2.93MB
+                               Code Size : 0.60MB
+                              Param Size : 22.72MB
+                           Workload MACs : 11426.44MOPS
+                         IO Memory Space : 1.67MB
                               Mean Value : 0, 0, 0,
-                              Node Count : 193
-                            Tensor Count : 205
+                              Node Count : 121
+                            Tensor Count : 131
                     Input Node(s)(H*W*C)
-InceptionV4_InceptionV4_Conv2d_1a_3x3_Conv2D(0) : 299*299*3
+InceptionV3_InceptionV3_Conv2d_1a_3x3_Conv2D(0) : 299*299*3
                    Output Node(s)(H*W*C)
-     InceptionV4_Logits_Logits_MatMul(0) : 1*1*1001
+InceptionV3_Logits_Conv2d_1c_1x1_Conv2D(0) : 1*1*1001
 
 
-                             Kernel Name : inception_v4_1
+                             Kernel Name : inception_v3_1
 --------------------------------------------------------------------------------
                              Kernel Type : CPUKernel
                     Input Node(s)(H*W*C)
-          InceptionV4_Logits_Predictions : 1*1*1001
+       InceptionV3_Logits_SpatialSqueeze : 1*1*1001
                    Output Node(s)(H*W*C)
-          InceptionV4_Logits_Predictions : 1*1*1001
+         InceptionV3_Predictions_Softmax : 1*1*1001
 ```
 
-With this output we now know the name of the input and output boundary nodes of the DPU (`InceptionV4_InceptionV4_Conv2d_1a_3x3_Conv2D` and `InceptionV4_Logits_Logits_MatMul` respecively), which we need to comunicate the ZedBoard's CPU with the DPU, the name of the DPU kernel(`inception_v4_0`) and the layers that are not supported by the DPU which have to be included in the CPU kernel (`softmax layer`).
+With this output we now know the name of the input and output boundary nodes of the DPU (`InceptionV3_InceptionV3_Conv2d_1a_3x3_Conv2D` and `InceptionV3_Logits_Conv2d_1c_1x1_Conv2D` respecively), which we need to comunicate the ZedBoard's CPU with the DPU, the name of the DPU kernel(`inception_v3_0`) and the layers that are not supported by the DPU which have to be included in the CPU kernel (`softmax layer`).
 
 -------------------------------------------------------------------------------
 
@@ -2524,5 +2526,312 @@ With this output we now know the name of the input and output boundary nodes of 
 The first step is to copy the application directory to the ZedBoard. Enter the directory that contains the folder with the ZedBoard application and open a terminal. Execute the following commands.
 
 ```
-sudo scp -r ./ZedBoard_Inception_v4 root@192.168.0.21:~/xilinx-dnndk-v3.1/ZedBoard/samples
+sudo scp -r ./ZedBoard_Inception_v3 root@192.168.0.21:~/xilinx-dnndk-v3.1/ZedBoard/samples
+```
+
+
+
+
+
+
+
+#### TensorFlow: Mobilenet_v1
+The first step to create an application for the TensorFlow inception_v4 model is to donwload the pre-trained model [here](https://www.xilinx.com/bin/public/openDownload?filename=tf_mobilenetv1_1.0_imagenet_224_224_1.1.zip). The name of this model in the repository is `tf_mobilenetv1_1.0_imagenet_224_224_1.14G_1.1`. This name indicates that the model uses the TensorFlow framework, `tf`, the name of the network itself, `mobilenetv1_1.0`, the dataset it was trained with, `imagenet`, the size of the images it was trained with, `224x224`, the computation of the model (how many GPOS per image), `1.14G` and the version of Vitis-AI the network was trained for, `v1.1`.
+
+In this application the target device is a ZedBoard, therefore we are using the DNNDK v3.1 rather than Vitis-AI v1.1, which won't be a problem at all.
+
+-----------------------------------------------------------------------------
+
+**Quantization**.
+
+The quantization of the model requires two main steps. First of all, the pre-processing of the calibration images, due to the fact that they are not pre-processed in the frozen graph. To do this task, we create two python scripts, one with the operations that are going to take place, and another one with the definition of the functions.
+
+```python
+from mobilenet_v1_preprocessing import *
+
+# calib_image_dir = "../../calibration_data/imagenet_images/"
+calib_image_dir = "/media/arroas/HDD/MinhasCousas/EEI/Mestrado/2_Curso/TFM/Inference_Images/calibration_data/imagenet_images/"
+# calib_image_list = "../../calibration_data/imagenet_calib.txt"
+calib_image_list = "/media/arroas/HDD/MinhasCousas/EEI/Mestrado/2_Curso/TFM/Inference_Images/calibration_data/imagenet_calib.txt"
+calib_batch_size = 1
+def calib_input(iter):
+  images = []
+  line = open(calib_image_list).readlines()
+  for index in range(0, calib_batch_size):
+    curline = line[iter * calib_batch_size + index]
+    calib_image_name = curline.strip()
+    source = cv2.imread(calib_image_dir + calib_image_name)
+    image = cv2.resize(source, (224, 224))
+    image = mean_image_subtraction(image, MEANS)
+    image = normalize(image)
+    images.append(image)
+  return {"input": images}
+```
+
+```python
+import cv2
+from sklearn import preprocessing
+
+_R_MEAN = 0
+_G_MEAN = 0
+_B_MEAN = 0
+
+MEANS = [_B_MEAN,_G_MEAN,_R_MEAN]
+
+def mean_image_subtraction(image, means):
+  B, G, R = cv2.split(image)
+  B = B - means[0]
+  G = G - means[1]
+  R = R - means[2]
+  image = cv2.merge([R, G, B])
+  return image
+
+def central_crop(image, crop_height, crop_width):
+  image_height = image.shape[0]
+  image_width = image.shape[1]
+
+  offset_height = (image_height - crop_height) // 2
+  offset_width = (image_width - crop_width) // 2
+
+  return image[offset_height:offset_height + crop_height, offset_width:
+               offset_width + crop_width]
+
+def normalize(image):
+  image=image/256.0
+  image=image-0.5
+  image=image*2
+  return image
+```
+
+For this pre-processing task the images are going to be resized with the `cv2.resize` function from `OpenCV`. This operation makes sure all input images are `224x224` pixels. After this operation, mean substraction and normalization is applied to convert the images to `RGB` format and to make sure all the image layer values are in the 0 to 1 range.
+
+Once the pre-processing script is ready, a quantization script is going to be created, `decent_q.sh`. It is important to make sure the input and ouput node names are correctly indicated. To check these names, enter the inception_v4 directory downloaded from the model-zoo repository, enter the float folder and execute the following command.
+
+```
+cd float
+
+decent_q inspect --input_frozen_graph mobilenet_v1_1.0_224.pb
+```
+
+One possibility for both the input and the output node is found.
+
+```
+Found 1 possible inputs: (name=input, type=float(1), shape=[?,224,224,3])
+Found 1 possible outputs: (name=MobilenetV1/Predictions/Reshape_1, op=Reshape)
+```
+
+With this information, create the quantization script, making sure you input the correct image sizes, node names and frozen graph input.
+
+```
+decent_q quantize \
+  --input_frozen_graph ./float/mobilenet_v1_1.0_224.pb \
+  --input_nodes input \
+  --input_shapes ?,224,224,3 \
+  --output_nodes MobilenetV1/Predictions/Reshape_1 \
+  --input_fn mobilenet_v1_input_fn.calib_input \
+  --method 1 \
+  --gpu 0 \
+  --calib_iter 100 \
+```
+
+Run the quantization script, `sh decent_q.sh`, which should print this output if properly executed.
+
+```
+INFO: Checking Float Graph...
+INFO: Float Graph Check Done.
+INFO: Calibrating for 100 iterations...
+100% (100 of 100) |###########################################| Elapsed Time: 0:00:43 Time:  0:00:43
+INFO: Calibration Done.
+INFO: Generating Deploy Model...
+[DEPLOY WARNING] Node MobilenetV1/Predictions/Reshape_1(Type: Reshape) is not quantized and cannot be deployed to DPU,because it has unquantized input node: MobilenetV1/Predictions/Softmax. Please deploy it on CPU.
+INFO: Deploy Model Generated.
+********************* Quantization Summary *********************      
+INFO: Output:       
+  quantize_eval_model: ./quantize_results/quantize_eval_model.pb       
+  deploy_model: ./quantize_results/deploy_model.pb
+```
+
+Once the quantization model has been correctly created, we are going to evaluate both the frozen and quantized models and compare the loss in accuracy. To do this we use the evaluation script from section [TensorFlow model](#tensorflow-model), subsection 4, Output and Evaluation. Copy the code to a python script in your inception_v4 model directory, and make sure the input_fn.py script call within the code has the correct name, which in this case should be `mobilenet_v1_input_fn.py`, rather than `inception_v1_input_fn.py`. Now, add to the beggining of your `mobilenet_v1_input_fn.py` the following code needed for the evaluation.
+
+```python
+from mobilenet_v1_preprocessing import *
+
+def eval_input(iter, eval_image_dir, eval_image_list, class_num, eval_batch_size):
+  images = []
+  labels = []
+  line = open(eval_image_list).readlines()
+  for index in range(0, eval_batch_size):
+    curline = line[iter * eval_batch_size + index]
+    [image_name, label_id] = curline.split(' ')
+    image = cv2.imread(eval_image_dir + image_name)
+    image = cv2.resize(image, (224, 224))
+    image = mean_image_subtraction(image, MEANS)
+    image = normalize(image)
+    images.append(image)
+    labels.append(int(label_id) + 1)
+  lb = preprocessing.LabelBinarizer()
+  lb.fit(range(0, class_num))
+  labels = lb.transform(labels)
+  return {"input": images, "labels": labels}
+
+# calib_image_dir = "../../calibration_data/imagenet_images/"
+...
+
+```
+
+You are now ready to call the evaluation of the frozen graph with the following script.
+
+```
+#!/bin/sh
+
+set -e
+
+# Please set your imagenet validation dataset path here,
+IMAGE_DIR=/media/arroas/HDD/MinhasCousas/EEI/Mestrado/2_Curso/TFM/Inference_Images/calibration_data/imagenet_images/
+IMAGE_LIST=/media/arroas/HDD/MinhasCousas/EEI/Mestrado/2_Curso/TFM/Inference_Images/calibration_data/val.txt
+
+# Please set your batch size settings here, #IMAGES = VAL_BATCHES * BATCH_SIZE
+# Commonly there are 5w image in total for imagenet validation dataset
+EVAL_BATCHES=10		#1000
+BATCH_SIZE=50
+
+python mobilenet_v1_eval.py \
+  --input_frozen_graph float/mobilenet_v1_1.0_224.pb \
+  --input_node input \
+  --output_node MobilenetV1/Predictions/Reshape_1 \
+  --eval_batches $EVAL_BATCHES \
+  --batch_size $BATCH_SIZE \
+  --eval_image_dir $IMAGE_DIR \
+  --eval_image_list $IMAGE_LIST \
+  --gpu 0
+```
+
+You can copy the avobe code and save it wiht the extension `.sh` and run it with the command `sh <name>.sh` with the `decent` environment activated. The result should be the following.
+
+```
+Start Evaluation for 10 Batches...
+100% (10 of 10) |#############################################| Elapsed Time: 0:00:24 Time:  0:00:24
+Accuracy: Top1: 0.642000013589859, Top5: 0.8519999861717225
+```
+
+Now, repeat the same proccess -for the quantization model.
+
+```
+#!/bin/sh
+
+set -e
+
+# Please set your imagenet validation dataset path here,
+IMAGE_DIR=/media/arroas/HDD/MinhasCousas/EEI/Mestrado/2_Curso/TFM/Inference_Images/calibration_data/imagenet_images/
+IMAGE_LIST=/media/arroas/HDD/MinhasCousas/EEI/Mestrado/2_Curso/TFM/Inference_Images/calibration_data/val.txt
+
+# Please set your batch size settings here, #IMAGES = VAL_BATCHES * BATCH_SIZE
+# Commonly there are 5w image in total for imagenet validation dataset
+EVAL_BATCHES=10		#1000
+BATCH_SIZE=50
+
+python mobilenet_v1_eval.py \
+  --input_frozen_graph quantize_results/quantize_eval_model.pb \
+  --input_node input \
+  --output_node MobilenetV1/Predictions/Reshape_1 \
+  --eval_batches $EVAL_BATCHES \
+  --batch_size $BATCH_SIZE \
+  --eval_image_dir $IMAGE_DIR \
+  --eval_image_list $IMAGE_LIST \
+  --gpu 0
+```
+
+The result of the evalutaion should be similar to this one.
+
+```
+Start Evaluation for 10 Batches...
+100% (10 of 10) |#############################################| Elapsed Time: 0:00:38 Time:  0:00:38
+Accuracy: Top1: 0.013999999687075614, Top5: 0.06199999935925007
+```
+
+|Accuracy|Frozen Graph     |Quantized Graph    |
+|--------|-----------------|-------------------|
+|Top1    |0.642000013589859|0.01399999968707561|
+|Top5    |0.851999986171723|0.06199999935925007|
+
+
+
+There is a problem with the image preprocesing that has produced a great decrease in accuracy.
+
+-----------------------------------------------------------------------------
+
+**Compilation**.
+
+The compilation process is performed with the DNNC tool, for which we create the following script.
+
+```
+##!/usr/bin/env bash
+
+net="mobilenet_v1"
+CPU_ARCH="arm32"
+DNNC_MODE="debug"
+dnndk_board="ZedBoard"
+dnndk_dcf="ZedBoard.dcf"
+
+echo "Compiling Network ${net}"
+
+# Work space directory
+work_dir=$(pwd)
+
+# Path of tensorflow quantization model
+model_dir=${work_dir}/quantize_results
+# Output directory
+output_dir="dnnc_output"
+
+tf_model=${model_dir}/deploy_model.pb
+
+DNNC=dnnc
+
+# Get DNNDK config info
+if [ ! -f /etc/dnndk.conf ]; then
+    echo "Error: Cannot find /etc/dnndk.conf"
+    exit 1
+else
+    tmp=$(grep "DNNDK_VERSION=" /etc/dnndk.conf)
+    dnndk_version=${tmp#DNNDK_VERSION=}
+    dnndk_version=${dnndk_version#v}
+    echo "DNNDK      : $dnndk_version"
+    echo "Board Name : $dnndk_board"
+    echo "DCF file   : $dnndk_dcf"
+fi
+
+if [ ! -d "$model_dir" ]; then
+    echo "Can not found directory of $model_dir"
+    exit 1
+fi
+
+[ -d "$output_dir" ] || mkdir "$output_dir"
+
+echo "CPU Arch   : $CPU_ARCH"
+echo "DNNC Mode  : $DNNC_MODE"
+echo "$(dnnc --version)"
+$DNNC   --parser=tensorflow                         \
+       --frozen_pb=${tf_model}                     \
+       --output_dir=${output_dir}                  \
+       --dcf=${dnndk_dcf}                          \
+       --mode=${DNNC_MODE}                         \
+       --cpu_arch=${CPU_ARCH}                      \
+       --net_name=${net}
+```
+
+When creating a ZedBoard application it is important to make sure the CPU Arch selected is `arm32`, otherwise the DPU model won't work. It is also important to specify where is your board `.dcf` file located. If you are using the Petalinux Xilinx image for ZedBoard that can be donwloaded [here](https://www.xilinx.com/products/design-tools/ai-inference/ai-developer-hub.html#edge), you'll find this file in the `<dnndk_package_v3.1_directory>/host_x86/dcf/ZedBoard.dcf`. If you have a custom project, you can generate the `.dcf` file with the `DLet` tool explained in section [TensorFlow model](#tensorflow-model), subsection `Network Compilation >> 1. DLet`. The output of the compilation tool when using the Xilinx Petalinux image is the following, as this image doesn't have the `depthWiseConv` layer enabled. To check if your DPU has this layer enabled, you can also run the command `dexplorer -w` in your board.
+
+```
+Compiling Network mobilenet_v1
+DNNDK      : 3.1
+Board Name : ZedBoard
+DCF file   : ../dcf/ZedBoard.dcf
+CPU Arch   : arm32
+DNNC Mode  : debug
+dnnc version v3.00
+DPU Target : v1.4.0
+Build Label: Aug  9 2019 05:23:25
+Copyright @2019 Xilinx Inc. All Rights Reserved.
+
+[DNNC][Error] layer [MobilenetV1_MobilenetV1_Conv2d_1_depthwise_depthwise] (type: DepthWiseConv) is not supported for current DPU configuration file.
 ```
