@@ -34,7 +34,8 @@ In this guide it is preteded to explain the whole process to implement DNN infer
     - [Caffe model](#caffe-model)
     - [TensorFlow model](#tensorflow-model)
   - [Model Zoo repository](#model-zoo-repository)
-    -[TensorFlow: Inception_v3](#tensoflow:-inception_v4)
+    - [TensorFlow: Inception_v3](#tensoflow:-inception_v3)
+    - [TensorFlow: Mobilenet_v1](#tensoflow:-mobilenet_v1)
 
 
 
@@ -2240,7 +2241,10 @@ def central_crop(image, crop_height, crop_width):
 
   offset_height = (image_height - crop_height) // 2
   offset_width = (image_width - crop_width) // 2
-
+/* Initialize and self test the private timer of Cortex-A9 */
+    TMRConfigPtr = XScuTimer_LookupConfig(TIMER_DEVICE_ID);
+    XScuTimer_CfgInitialize(&Timer, TMRConfigPtr,TMRConfigPtr->BaseAddr);
+    XScuTimer_SelfTest(&Timer);
   return image[offset_height:offset_height + crop_height, offset_width:
                offset_width + crop_width]
 
@@ -2517,6 +2521,114 @@ With this output we now know the name of the input and output boundary nodes of 
 
 **Programming the application**.
 
+
+1. Timer to measure DPU and CPU processing time.
+
+The timers of both Cortex-A9 processors are clocked at 1/2 the CPU frequency `CPU_3x2x`. Both processors have each one 32-bit timer, and they also share a 64-bit one.
+
+The equation to select the prescaler of all the processor timers is the following:
+
+`((PRESCALER_value + 1)*(Load_value + 1))/PERIPHCLK`
+
+The equation gives the interval value for a given prescaler, being PERIPHCLK the CPU clock and Load_value the value you have to load into the clock register in order to stablish the required timing.
+
+If CPU clock has been set to 6:2:1, the frequency is 400 MHz, while if the CPU is set to 4:2:1, the frequency is 300 MHz.
+
+This means that `PERIPHCLK = 200 MHz` in the case of the Vivado project presented in this guide. For this application, we are going to create a timer that counts up to 1 second, whith as much precission as possible, as the time we want to count shouldn't ever surpass half a second.
+
+We are therefore going to use the Global timer, as it is 64-bit. Withoug a prescaler, the maximum time we can count is calculated as follows:
+
+`max_time_no_prescaler = ((0 + 1)*(2^32 + 1))/200000000 = 21.47 sec.`
+
+This means that we can set the prescaler to 0 as we can count more than enough time. Anyways, the DPU has a timer with a precision of one microsecond to measure the execution time of the layers ran by the DPU, therefore, the CPU timer is going to be set to the same precission. We want to know the prescale value needed when so that each time the counter is incremented, the time passed is `counted_time = 1 us`.
+
+```
+counted_time = ((Prescaler + 1)*(Load_value + 1))/PERIPHCLK
+
+Prescaler = [(counted_time*PERIPHCLK)/(Load_value + 1)] - 1
+
+Prescaler = [( 1us * 200MHz)/(0 + 1)] - 1 = 199
+```
+
+If we set a prescaler equal to 199, each time the timer counter is decreased, one us has passed.
+
+The timer is going to be handled with the [xscutimer.h](https://xilinx.github.io/embeddedsw.github.io/scutimer/doc/html/api/xscutimer_8h.html) library. There is several datatypes and functions that are necessary to use this library, which are now detailed.
+
+- **XScuTimer**: it is a driver instance data. It is necessary by the user to allocate a variable of this type for every timer device in the system. The API functions of the variable have a pointer of this variable as an argument. The variable can be declared with the `static` keyword asure the memory space allocated for the variable lasts the lifetime of the program.
+
+- **XScuTimer_Config**: struct datatype that contains information of the timer device. The device unique ID, stored as `u16` and its BaseAddr, stored as `u32`.
+
+-**XScuTimer_LookupConfig(u16 DeviceID)**: Looks up the device configuration based on the unique device ID. The function returns a pointer to the configuration table entry corresponding to the given device ID, or NULL if no match is found.
+
+- **XScuTimer_CfgInitialize(XScuTimer *InstancePtr, XScuTimer_Config *ConfigPtr, u32 EffectiveAddress)**: initialices a timer driver or instance. This function has to be called before the driver is called by other functions. The first parameter is a pointer to a `XScuTimer` object, the second a pointer to the configuration structure and the last one the address of the timer, which is a part of the previous structure. Returns "XST_SUCCESS" if initialization was successful or "XST_DEVICE_IS_STARTED" if the device has already been started.
+
+- **XScuTimer_SelfTest(XScuTimer *InstancePtr)**: Runs a self test on the timer. This test clears the timer enable bit in the control register, writes to the timer load register and verifies the value read back matches the value written and restores the control register and the timer load register. It takes in a pointer to a XScuTimer object as an argument and returns a "XST_SUCCESS" if the test was successful or "XST_FAILURE" if it wasn't.
+
+- **XScuTimer_SetPrescaler(XScuTimer *InstancePtr, u8 PrescalerValue)**: Function that sets the 8-bit prescaler to the timer control register. It's arguments are an instance to the a XScuTimer instance and the prescaler value.
+
+- **XScuTimer_LoadTimer(InstancePtr, Value)**: Write to the timer load register. This also updates the timer counter register with the new value. In fact, if manually programed, unless it is neccesary to use the autoreload mode, it is not neccessary to use the load register, and the starting value can directly be loaded to the counter register. Takes as arguments a pointer to the XScuTimer instance and the value that is going to be loaded, typically in hexadecimal format (TIMER_LOAD_VALUE in the example code).
+
+- **XScuTimer_Start**: starts the timer and has no return value.
+
+- **XScuTimer_Stop**: stops the timer and has no return value.
+
+- **XScuTimer_GetCounterValue(XScuTimer *InstancePtr)**: Returns the current timer counter register value, taking as an argument an instance of `XScuTimer`.
+
+An example code is shown now, stablishing a timer for which each counter decrement is 1 us.
+
+
+```c++
+#include xscutimer.h
+
+/* Timer */
+#define TIMER_LOAD_VALUE    "0xFFFFFFFF"
+#define TIMER_DEVICE_ID		XPAR_XSCUTIMER_0_DEVICE_ID
+
+static XScuTimer Timer;
+
+
+
+void timer_manager(int mode, unsigned long &time_stop) {
+
+  switch (mode) {
+    case 0 :  //timer start
+      //set prescaler if needed here
+      XScuTimer_LoadTimer(&Timer, TIMER_LOAD_VALUE);
+      XScuTimer_Start(&Timer);
+      break;
+    case 1 :
+      XScuTimer_Stop(&Timer);
+      time_stop = XScuTimer_GetConunterValue(&Timer);
+      break;
+  }
+}
+
+counted_time(unsigned long &time_stop, uint8_t &prescaler) {
+  unsigned long time_start = 0xFFFFFFFF;
+  unsigned long time_value = time_start - time_stop + 1;
+  cout << "\nInference execution time = " << time_value << " us".
+
+}
+
+
+
+int main(void) {
+  XScuTimer_Config *TMRconfigPtr;
+  uint8_t prescaler = 199;
+
+  /* Initialize and self test the private timer of Cortex-A9 */
+  TMRConfigPtr = XScuTimer_LookupConfig(TIMER_DEVICE_ID);
+  XScuTimer_CfgInitialize(&Timer, TMRConfigPtr,TMRConfigPtr->BaseAddr);
+  XScuTimer_SelfTest(&Timer);
+  XScuTimer_SetPrescaler(&Timer, prescaler);
+
+  unsigned long stop_value;
+  timer_manager(0, stop_value); // start timer
+  timer_manager(1, stop_value); // stop timer
+  counted_time(stop_value, prescaler);
+
+}
+```
 
 
 -------------------------------------------------------------------------------
