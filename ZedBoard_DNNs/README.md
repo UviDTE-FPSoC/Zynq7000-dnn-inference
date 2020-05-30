@@ -34,8 +34,8 @@ In this guide it is preteded to explain the whole process to implement DNN infer
     - [Caffe model](#caffe-model)
     - [TensorFlow model](#tensorflow-model)
   - [Model Zoo repository](#model-zoo-repository)
-    - [TensorFlow: Inception_v3](#tensoflow:-inception_v3)
-    - [TensorFlow: Mobilenet_v1](#tensoflow:-mobilenet_v1)
+    - [TensorFlow Inception_v3](#tensoflow-inception_v3)
+    - [TensorFlow Mobilenet_v1](#tensoflow-mobilenet_v1)
 
 
 
@@ -2184,7 +2184,7 @@ This section is dedicated to port model-zoo repository pre-trained models to Zed
 
 
 
-#### TensorFlow: Inception_v3
+#### TensorFlow Inception_v3
 The first step to create an application for the TensorFlow inception_v4 model is to donwload the pre-trained model [here](https://www.xilinx.com/bin/public/openDownload?filename=tf_inceptionv3_imagenet_299_299_1.1.zip). The name of this model in the repository is `tf_inceptionv3_imagenet_299_299_11.45G_1.1`. This name indicates that the model uses the TensorFlow framework, `tf`, the name of the network itself, `inceptionv4`, the dataset it was trained with, `imagenet`, the size of the images it was trained with, `299x299`, the computation of the model (how many GPOS per image), `11.45G` and the version of Vitis-AI the network was trained for, `v1.1`.
 
 In this application the target device is a ZedBoard, therefore we are using the DNNDK v3.1 rather than Vitis-AI v1.1, which won't be a problem at all.
@@ -2647,7 +2647,7 @@ sudo scp -r ./ZedBoard_Inception_v3 root@192.168.0.21:~/xilinx-dnndk-v3.1/ZedBoa
 
 
 
-#### TensorFlow: Mobilenet_v1
+#### TensorFlow Mobilenet_v1
 The first step to create an application for the TensorFlow inception_v4 model is to donwload the pre-trained model [here](https://www.xilinx.com/bin/public/openDownload?filename=tf_mobilenetv1_1.0_imagenet_224_224_1.1.zip). The name of this model in the repository is `tf_mobilenetv1_1.0_imagenet_224_224_1.14G_1.1`. This name indicates that the model uses the TensorFlow framework, `tf`, the name of the network itself, `mobilenetv1_1.0`, the dataset it was trained with, `imagenet`, the size of the images it was trained with, `224x224`, the computation of the model (how many GPOS per image), `1.14G` and the version of Vitis-AI the network was trained for, `v1.1`.
 
 In this application the target device is a ZedBoard, therefore we are using the DNNDK v3.1 rather than Vitis-AI v1.1, which won't be a problem at all.
