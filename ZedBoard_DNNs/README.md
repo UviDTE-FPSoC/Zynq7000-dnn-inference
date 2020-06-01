@@ -10,7 +10,7 @@ In this guide it is preteded to explain the whole process to implement DNN infer
 - [Installation of Digilent Board Files](#installation-of-digilent-board-files)
 - [Hardware description project](#hardware-description-project)
   - [Create a Vivado Design Suite Project](#create-a-vivado-design-suite-project)
-  - [Import DPU IP to the project](#import-dpu-ip-to-the-project)
+  - [Import DPU IP into the project](#import-dpu-ip-into-the-project)
   - [Import and Interconnect all necessary IP blocks](#import-and-interconnect-all-necessary-ip-blocks)
   - [Assign register address for the design](#assign-register-address-for-the-design)
   - [Generate the bitstream](#generate-the-bitstream)
@@ -100,7 +100,7 @@ Open the Vivado tool. One easy way to do this in Ubuntu 18.04 LTS would be to op
 - Once you are in the project summary, click `Finish`.
 
 
-### Import the DPU IP to the project
+### Import DPU IP into the project
 The easiest way to proceed would be to download the [DPU TRD v3.0](https://login.xilinx.com/app/xilinxinc_f5awsprod_1/exknv8ms950lm0Ldh0x7/sso/saml), available at the [AI Developer](https://www.xilinx.com/products/design-tools/ai-inference/ai-developer-hub.html#edge) site.
 
 
