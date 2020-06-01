@@ -964,6 +964,8 @@ chmod og+rw /sys/module/dpu/parameters/accipmask || install_fail
 
 > NOTE: During the installation of the package, it is necesary that the file `opencv.pc` is located in the RootFS `/usr/lib/pkgconfig/` folder. The only configuration that seems to generate this file at this location is adding the opencv package to the RootFS file system with the command `petalinux-config -c rootfs` at the `> Filesystem > libs > opencv`. The addition of the needed libraries is better explained in section [Add libraries to RootFS](#add-libraries-to-rootfs).
 
+An alternative to using the PetaLinux configuration indicated in this guide is to directly use the `.img` file for ZedBoard that can be downloaded at the [AI Developer](https://www.xilinx.com/products/design-tools/ai-inference/ai-developer-hub.html#edge) site. To install this image, boot it to the SD card using a program such as Etcher, as explained in page 17 of the [DNNDK v3.1 documentation](https://www.xilinx.com/support/documentation/sw_manuals/ai_inference/v1_6/ug1327-dnndk-user-guide.pdf), and execute the `install.sh` script without erasing the DPU driver installation part. With this configuration you won't be able to execute the tf_mobilenet networks. The reason is that this PetaLinux image has a DPU configuration that doesn't enable to execute the `depthWiseConv` layer.
+
 
 
 
@@ -2182,6 +2184,24 @@ The `.dfc` file is created a name that contains the date the `.hwh` was created.
 
 > NOTE: The DPU IP block used in the Vivado project has to come from the DPU TRD v3.0 or higher in order to be compatible with the DNNDK v3.1 package.
 
+An example is now shown here:
+
+```
+$ dlet -f /media/arroas/HDD/MinhasCousas/EEI/Mestrado/2_Curso/TFM/vitis-dnn/ZedBoard_DNNs/ZedBoard_DPU_2019_2/ZedBoard_DPU_2019_2.srcs/sources_1/bd/design_1/hw_handoff/design_1.hwh
+```
+
+The output should look like this:
+
+```
+[DLet]Generate DPU DCF file dpu-05302000-302000-202005302000-2000-00.dcf successfully.
+*** stack smashing detected ***: <unknown> terminated
+Aborted (core dumped)
+```
+
+You can rename the `.dcf` for an easier one, such as `custom_zedboard`.
+
+> NOTE: if the .hwh file is corrupted and the DNNC tool doesn't execute properly due to the .dcf file, you can regenerate this file by going to you Vivado project and generating the output products again. This is done in section [Generate bitstream](#generate-bitstream)
+
 
 2. **Compilation**
 
@@ -2614,7 +2634,7 @@ $DNNC   --parser=tensorflow                         \
        --net_name=${net}
 ```
 
-When creating a ZedBoard application it is important to make sure the CPU Arch selected is `arm32`, otherwise the DPU model won't work. It is also important to specify where is your board `.dcf` file located. If you are using the Petalinux Xilinx image for ZedBoard that can be donwloaded [here](https://www.xilinx.com/products/design-tools/ai-inference/ai-developer-hub.html#edge), you'll find this file in the `<dnndk_package_v3.1_directory>/host_x86/dcf/ZedBoard.dcf`. If you have a custom project, you can generate the `.dcf` file with the `DLet` tool explained in section [TensorFlow model](#tensorflow-model), subsection `Network Compilation >> 1. DLet`. The output of the compilation tool should be the following:
+When creating a ZedBoard application it is important to make sure the CPU Arch selected is `arm32`, otherwise the DPU model won't work. It is also important to specify where is your board `.dcf` file located. If you are using the Petalinux Xilinx image for ZedBoard, that can be donwloaded [here](https://www.xilinx.com/products/design-tools/ai-inference/ai-developer-hub.html#edge), you'll find this file in the `<dnndk_package_v3.1_directory>/host_x86/dcf/ZedBoard.dcf`. If you have a custom project, you can generate the `.dcf` file with the `DLet` tool explained in section [TensorFlow model](#tensorflow-model), subsection `Network Compilation >> 1. DLet`.
 
 ```
 Compiling Network inception_v3
@@ -3078,19 +3098,7 @@ $DNNC   --parser=tensorflow                         \
        --net_name=${net}
 ```
 
-When creating a ZedBoard application it is important to make sure the CPU Arch selected is `arm32`, otherwise the DPU model won't work. It is also important to specify where is your board `.dcf` file located. If you are using the Petalinux Xilinx image for ZedBoard that can be donwloaded [here](https://www.xilinx.com/products/design-tools/ai-inference/ai-developer-hub.html#edge), you'll find this file in the `<dnndk_package_v3.1_directory>/host_x86/dcf/ZedBoard.dcf`. If you have a custom project, you can generate the `.dcf` file with the `DLet` tool explained in section [TensorFlow model](#tensorflow-model), subsection `Network Compilation >> 1. DLet`. The output of the compilation tool when using the Xilinx Petalinux image is the following, as this image doesn't have the `depthWiseConv` layer enabled. To check if your DPU has this layer enabled, you can also run the command `dexplorer -w` in your board. If you use a custom `.dcf` file, make sure you don't modify its name, or the file might not be properly used by the DNNC tool. To create the file, locate the .hwh file and run the following command.
-
-```
-$ dlet -f /media/arroas/HDD/MinhasCousas/EEI/Mestrado/2_Curso/TFM/vitis-dnn/ZedBoard_DNNs/ZedBoard_DPU_2019_2/ZedBoard_DPU_2019_2.srcs/sources_1/bd/design_1/hw_handoff/design_1.hwh
-```
-
-The output should look like this:
-
-```
-[DLet]Generate DPU DCF file dpu-05302000-302000-202005302000-2000-00.dcf successfully.
-*** stack smashing detected ***: <unknown> terminated
-Aborted (core dumped)
-```
+When creating a ZedBoard application it is important to make sure the CPU Arch selected is `arm32`, otherwise the DPU model won't work. It is also important to specify where is your board `.dcf` file located. If you are using the Petalinux Xilinx image for ZedBoard, that can be donwloaded [here](https://www.xilinx.com/products/design-tools/ai-inference/ai-developer-hub.html#edge), you'll find this file in the `<dnndk_package_v3.1_directory>/host_x86/dcf/ZedBoard.dcf`. If you have a custom project, you can generate the `.dcf` file with the `DLet` tool explained in section [TensorFlow model](#tensorflow-model), subsection `Network Compilation >> 1. DLet`.
 
 I now re-name the file to `custom_zedboard.dcf`, and execute the DNNC tool.
 
@@ -3433,19 +3441,7 @@ $DNNC   --parser=tensorflow                         \
        --net_name=${net}
 ```
 
-When creating a ZedBoard application it is important to make sure the CPU Arch selected is `arm32`, otherwise the DPU model won't work. It is also important to specify where is your board `.dcf` file located. If you are using the Petalinux Xilinx image for ZedBoard that can be donwloaded [here](https://www.xilinx.com/products/design-tools/ai-inference/ai-developer-hub.html#edge), you'll find this file in the `<dnndk_package_v3.1_directory>/host_x86/dcf/ZedBoard.dcf`. If you have a custom project, you can generate the `.dcf` file with the `DLet` tool explained in section [TensorFlow model](#tensorflow-model), subsection `Network Compilation >> 1. DLet`. The output of the compilation tool when using the Xilinx Petalinux image is the following, as this image doesn't have the `depthWiseConv` layer enabled. To check if your DPU has this layer enabled, you can also run the command `dexplorer -w` in your board. If you use a custom `.dcf` file, make sure you don't modify its name, or the file might not be properly used by the DNNC tool. To create the file, locate the .hwh file and run the following command.
-
-```
-$ dlet -f /media/arroas/HDD/MinhasCousas/EEI/Mestrado/2_Curso/TFM/vitis-dnn/ZedBoard_DNNs/ZedBoard_DPU_2019_2/ZedBoard_DPU_2019_2.srcs/sources_1/bd/design_1/hw_handoff/design_1.hwh
-```
-
-The output should look like this:
-
-```
-[DLet]Generate DPU DCF file dpu-05302000-302000-202005302000-2000-00.dcf successfully.
-*** stack smashing detected ***: <unknown> terminated
-Aborted (core dumped)
-```
+When creating a ZedBoard application it is important to make sure the CPU Arch selected is `arm32`, otherwise the DPU model won't work. It is also important to specify where is your board `.dcf` file located. If you are using the Petalinux Xilinx image for ZedBoard that can be donwloaded [here](https://www.xilinx.com/products/design-tools/ai-inference/ai-developer-hub.html#edge), you'll find this file in the `<dnndk_package_v3.1_directory>/host_x86/dcf/ZedBoard.dcf`. If you have a custom project, you can generate the `.dcf` file with the `DLet` tool explained in section When creating a ZedBoard application it is important to make sure the CPU Arch selected is `arm32`, otherwise the DPU model won't work. It is also important to specify where is your board `.dcf` file located. If you are using the Petalinux Xilinx image for ZedBoard, that can be donwloaded [here](https://www.xilinx.com/products/design-tools/ai-inference/ai-developer-hub.html#edge), you'll find this file in the `<dnndk_package_v3.1_directory>/host_x86/dcf/ZedBoard.dcf`. If you have a custom project, you can generate the `.dcf` file with the `DLet` tool explained in section [TensorFlow model](#tensorflow-model), subsection `Network Compilation >> 1. DLet`.
 
 I now re-name the file to `custom_zedboard.dcf`, and execute the DNNC tool.
 
