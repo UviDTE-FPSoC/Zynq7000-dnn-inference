@@ -15,13 +15,14 @@ In this guide it is preteded to explain the whole process to implement DNN infer
   - [Assign register address for the design](#assign-register-address-for-the-design)
   - [Generate the bitstream](#generate-the-bitstream)
 - [PetaLinux Project Installation and Configuration](#petalinux-project-installation-and-configuration)
-  - [Project Creation](#project-creation)
-  - [Import and configure DPU drivers and other packages](#import-and-configure-dpu-drivers-and-othr-packages)
+  - [Import and configure DPU drivers, DNNDK package and other libraries](#import-and-configure-dpu-drivers,-dnndk-package-and-other-libraries)
     - [DPU drivers](#dpu-drivers)
     - [DPU device tree definition](#dpu-device-tree-definition)
     - [DPU driver individual installation](#dpu-driver-individual-installation)
+    - [DNNDK and autostart package installation](#dnndk-and-autostart-package-installation)
     - [Driver and packages combined installation](#driver-and-packages-combined-installation)
     - [Add libraries to RootFS](#add-libraries-to-rootfs)
+    - [Additional configuration](#additional-configuration)
 - [Deep Neural Network Development Kit](#deep-neural-network-development-kit)
   - [Donwload and Installation of the DNNDK](#download-and-installation-of-the-dnndk)
     - [Setting up the host](#setting-up-the-host)
@@ -36,6 +37,7 @@ In this guide it is preteded to explain the whole process to implement DNN infer
   - [Model Zoo repository](#model-zoo-repository)
     - [TensorFlow Inception_v3](#tensoflow-inception_v3)
     - [TensorFlow Mobilenet_v1](#tensoflow-mobilenet_v1)
+    - [TensorFlow Mobilenet_v2](#tensoflow-mobilenet_v2)
 
 
 
@@ -99,21 +101,16 @@ Open the Vivado tool. One easy way to do this in Ubuntu 18.04 LTS would be to op
 
 
 ### Import the DPU IP to the project
-The easiest way to proceed would be to clone the Vitis-AI repository, [https://github.com/Xilinx/Vitis-AI](https://github.com/Xilinx/Vitis-AI). This folder should be cloned to the `/home` directory, as the use of the Vitis-AI tools require certain permissions.
+The easiest way to proceed would be to download the [DPU TRD v3.0](https://login.xilinx.com/app/xilinxinc_f5awsprod_1/exknv8ms950lm0Ldh0x7/sso/saml), available at the [AI Developer](https://www.xilinx.com/products/design-tools/ai-inference/ai-developer-hub.html#edge) site.
+
+
+Now, within the downloaded folder, enter this directory.
 
 ```
-cd /home/arroas/
-
-git clone https://github.com/Xilinx/Vitis-AI
+cd <dpu-trd_donwload_directory>/pl/srcs/
 ```
 
-Now, within the cloned folder, enter this directory.
-
-```
-cd DPU-TRD/
-```
-
-In this directory there is a folder named *dpu_ip*. This is the folder which contains the DPU IP block and which is necesary to import into the previously created project. It is not necessary, but it's recommended to copy this folder into the *ZedBoard_DPU_2019_2* folder project. Open up a terminal in the directory which is shown above and enter the following commands.
+In this directory there is a folder named *dpu_ip*. This is the folder which contains the DPU IP block and which is necesary to import into the previously created project. It is not necessary, but it's recommended to copy this folder into the *ZedBoard_DPU_2019_2.ip_user_files* folder project. Open up a terminal in the directory which is shown above and enter the following commands.
 
 ```
 cp dpu_ip /media/arroas/HDD/MinhasCousas/EEI/Mestrado/2_Curso/TFM/vitis-dnn/ZedBoard_DNNs/ZedBoard_DPU_2019_2/ZedBoard_DPU_2019_2.ip_user_files/
@@ -209,7 +206,7 @@ In this image we see that `[91:84]` and `[68:61]` correspond to each of the 16 i
 
 ![alt text](https://raw.githubusercontent.com/UviDTE-FPSoC/vitis-dnn/master/ZedBoard_DNNs/GuideImages/GIC_IRQ_Zynq7000_Manual.png)
 
-The number the DPU interrupt is connected to would be `IRQ_F2P[0]`, which corresponds to *61 - 32 = 29*, `(0x1D)`. This is the number that is needed for the Linux device tree description.
+The number the DPU interrupt is connected to would be `IRQ_F2P[0]`, which corresponds to `61 - 32 = 29`. This is the number that is needed for the Linux device tree description.
 
 
 
@@ -334,50 +331,54 @@ Make sure the `Include Bitstream` option has been checked.
 
 
 
+
+
+
+
+
+
+
+
 PetaLinux Project Installation and Configuration
 -------------------------------
 PetaLinux is the woking Operating System chosen for this task. The reason is mainly that most of Xilinx documentation an tutorials use this operating system, which will show to be very helpful later on. Installing PetaLinux in the host requires a series of steps that are clearly explained [here](https://github.com/UviDTE-FPSoC/Zynq7000-examples/tree/master/SD-operating-system/PetaLinux/2019.2).
 
-In order to configure PetaLinux perform inference of DNNs, we have to configure the OS in a certain way. First of all, from the previous [guide](https://github.com/UviDTE-FPSoC/Zynq7000-examples/tree/master/SD-operating-system/PetaLinux/2019.2), make sure to complete all the steps in the PetaLinux Configuration section. This section will guide you through the process of setting up your host machine to work with PetaLinux, as well as the creation and configuration of a PetaLinux project for ZedBoard. The creation of the project is done with the Xilinx ZedBoard .bsp file, which includes the ZedBoard drivers needed by PetaLinux.
+In order to configure PetaLinux to perform inference of DNNs, we have to configure the OS in a certain way. First of all, from the previous [guide](https://github.com/UviDTE-FPSoC/Zynq7000-examples/tree/master/SD-operating-system/PetaLinux/2019.2), make sure to complete all the steps in the PetaLinux Configuration section. This section will guide you through the process of setting up your host machine to work with PetaLinux, as well as the creation and configuration of a PetaLinux project for ZedBoard. The creation of the project is done with the Xilinx ZedBoard .bsp file, which includes the ZedBoard drivers needed by PetaLinux.
 
 If you are able to boot PetaLinux on ZedBoard, as explained in the guide, you can continue with the following specific configuration steps.
 
 
 
-### Import and configure DPU drivers and other packages
-There is two ways of adding drivers and packages. This task can be done with each driver or package individually, or using an adtional script that will make it easier to add or remove drivers and packages. In this section both processes are explained, as they are very similar. First of all, the DPU drivers will be added individually, and later on we'll add a script that includes several needed packages as well as the DPU.
+### Import and configure DPU drivers, DNNDK package and other libraries
+There is two ways of adding drivers and packages. This task can be done with each driver or package individually, or using an adtional script that will make it easier to add or remove drivers and packages. In this section both processes are explained, as they are very similar. First of all, the DPU drivers will be added individually, and later on we'll add a script that includes all needed packages.
+
+There is two additional packages that will be included as it is mentioned in the Xilinx [AR# 73058](https://www.xilinx.com/support/answers/73058.html), where a PetaLinux project is configured to port resnet50 to a ZedBoard.
 
 
 
 #### DPU drivers
-Once the PetaLinux project has been created, it is necessary to import the DPU drivers into the project. In order to do this, go back to the Vitis-Ai repository folder that was cloned when importing the DPU IP block into the Vivado project, [here](#import-dpu-ip-to-the-project). Once in that folder, enter the following directory.
+Once the PetaLinux project has been created, it is necessary to import the DPU drivers into the project. In order to do this, go back to the DNNDK v3.1 package folder that was downloaded when importing the DPU IP block into the Vivado project, [here](#import-dpu-ip-to-the-project). Once in that folder, enter the following directory.
 
 ```
-cd DPU-TRD/prj/Vivado/dpu_petalinux_bsp/
+$ cd <dnndk-v3.1_download_directory>/apu/dpu_petalinux_bsp/
 ```
 
-In this directory there is one script that downloads the PetaLinux `.bsp` file for ZCU102. Download the file as follows, as it contains the DPU drivers that are needed for our project.
-
-```
-./download_bsp.sh
-```
-
-The `.bsp ` file will be downloaded to the current directory. Now it is time to untar the file.
+In this directory there is one `.bsp` file for ZCU102. Untar the file.
 
 ```
 $ tar xvzf xilinx-zcu102-v2019.2-final-4dpu-1.4.1.bsp
 ```
 
-The file contains several folders that would be added to our project if the PetaLinux project was created using this file. This cannot be done though as the project wouldn't contain the needed drivers for ZedBoard. Therefore, it is necessary to copy the DPU drivers from this folder into our project's folder. Enter the following directory.
+The file contains several folders that would be added to our project if the PetaLinux project was created using this `.bsp`. This cannot be done though, as the project wouldn't contain the needed drivers for ZedBoard. Therefore, it is necessary to copy the DPU drivers from this folder into our project's folder. Enter the following directory.
 
 ```
-cd xilinx-zcu102-v2019.2-final-4dpu-1.4.1/project-spec/meta-user/recipes-ai/
+$ cd zcu102-dpu-trd-2019-1/project-spec/meta-user/recipes-modules/
 ```
 
 The DPU folder that is found in this directory contains the DPU driver source. With a terminal opened in this directory, copy the `dpu` folder into the PetaLinux project.
 
 ```
-$ cp dpu /home/arroas/PetaLinux_Projects/ZedBoard_DNN_2019.2/project-spec/meta-user/recipes-ai/
+$ cp dpu /home/arroas/PetaLinux_Projects/ZedBoard_DNN_2019.2/project-spec/meta-user/recipes-modules/
 ```
 
 Once the DPU driver is in the project directory, there is several more steps to be made. The DPU kernel driver requires that the “version magic” match the kernel that we are building in
@@ -387,9 +388,9 @@ the kernel.
 - In the PetaLinux project directory, open he following file.
 
 ```
-cd /project-spec/meta-user/recipes-kernel/linux/
+$ cd <petalinux_proj_directory>/project-spec/meta-user/recipes-kernel/linux/
 
-gedit linux-xlnx_%.bbappend
+$ gedit linux-xlnx_%.bbappend
 ```
 
 Once the file has been opened, insert the following line at the end of it.
@@ -401,10 +402,9 @@ Without this change, the DPU kernel driver (dpu.ko) will fail to be inserted at 
 
 
 #### DPU device tree definition
-In addition to loading the DPU kernel driver, it is also needed to define the details of the DPU
-instantiation in the device tree content.
+In addition to loading the DPU kernel driver, it is also needed to define the details of the DPU instantiation in the device tree content.
 
-According to the [Zynq DPU v3.2 Product Guide, page 43](https://www.xilinx.com/support/documentation/ip_documentation/dpu/v3_2/pg338-dpu.pdf), the DPU device needs to be configured correctly under the PetaLinux device tree so that the DPU driver can work properly. Create a new node for the DPU and place it as the child node of “amba” in the device tree `system-user.dtsi`, which is located under `<plnx-proj-root>/project-spec/meta-user/recipes-bsp/device-tree/files/system-user.dtsi`.
+According to the [DPU for Convolutional Neural Network v3.0, DPU IP Product Guide, page 41](https://japan.xilinx.com/support/documentation/ip_documentation/dpu/v3_0/pg338-dpu.pdf), the DPU device needs to be configured correctly under the PetaLinux device tree so that the DPU driver can work properly. Create a new node for the DPU, in a new file called `dpu.dtsi`, and place it as the child node of “amba”, in the directory `<plnx_proj_directory>/project-spec/meta-user/recipes-bsp/device-tree/files/`.
 The parameters to the DPU and Softmax node are listed and described in the following table, which is *table 15* of the DPU product guide.
 
 ![alt text](https://raw.githubusercontent.com/UviDTE-FPSoC/vitis-dnn/master/ZedBoard_DNNs/GuideImages/DPU_DeviceTreeConfig_Table1.png)
@@ -414,20 +414,27 @@ The parameters to the DPU and Softmax node are listed and described in the follo
 The following node configuration stands for the DPU usage in the ZedBoard, with a Z-7020 chip. Below the example, there is the justification for each of the selected parameters.
 
 ``` cpp
-/include/ "system-conf.dtsi"
 / {
-};
+        amba{
+		dpu{
+		    #address-cells = <1>;
+    		    #size-cells = <1>;
+    		    compatible = "xilinx,dpu";
+    		    base-addr = <0x40000000>;
 
-&amba {
-	dpu {
-		compatible = "xilinx,dpu";
-		base-addr = <0x40000000>;   //CHANGE THIS ACCORDING TO YOUR DESIGN
-		dpucore {
+		    dpucore {
 		        compatible = "xilinx,dpucore";
 		        interrupt-parent = <&intc>;
-		        interrupts = <0x0 0x1D 0x1>;
+		        interrupts = <0x0 29 0x4>;
 		        core-num = <0x1>;
+		    };
+
 		};
+	};
+
+
+	amba_pl@0 {
+                /delete-node/ dpu_eu@40000000;
 	};
 };
 ```
@@ -439,34 +446,38 @@ The following node configuration stands for the DPU usage in the ZedBoard, with 
 - *dpucore->interrupts*: The `0x0` and the `0x1` are fixed values that do not have to be changed. The value that is placed in the middle indicates the Linux IRQ# obtained in section [assign register address for the design](#assign-register-address-for-the-design). The value  would be `0x1D`.
 - *dpucore->core-num*: The number of DPU cores. This parameter is configured in section [import and interconnect all necessary IP blocks](#import-and-interconnect-all-necessary-ip-blocks).
 
-The softmax options aren't included as this option is not compatible with Zynq-7000 family chips.
+The softmax options aren't included, as this option is not compatible with Zynq-7000 family chips.
+
+Now, enter the `system-user.dtsi` file and make sure the content is the following.
+
+```
+/include/ "system-conf.dtsi"
+/ {
+};
+
+#include "dpu.dtsi"
+```
+
+Finally, go to the `<plnx_proj_directory>/project-spec/meta-user/recipes-bsp/device-tree/` and open the file `device-tree.bbappend`, which should look like it is now shown.
+
+```
+FILESEXTRAPATHS_prepend := "${THISDIR}/files:"
+
+SRC_URI += "file://system-user.dtsi \
+	          file://dpu.dtsi \
+	          file://openamp.dtsi"
+```
+
+The `openmap.dtsi` is added because an indication at [AR# 73058](https://www.xilinx.com/support/answers/73058.html).
 
 
 
 #### DPU driver individual installation
-Once the previous configuration has been carried out, it is time to install the drivers in the PetaLinux project. The steps that are now indicated can be found in the `README.md` document within the DPU driver folder, at `<petalinux_project_directory>/project-spec/meta-user/recipes-ai/dpu/`.
+Once the previous configuration has been carried out, it is time to install the drivers in the PetaLinux project. The steps that are now indicated can be found in the `README.md` document within the DPU driver folder, at `<petalinux_proj_directory>/project-spec/meta-user/recipes-modules/dpu/`.
 
-- To compile and install the module to the target file system copy on the host, execute the following lines in the petalinux project directory. The first line builds the kernel, and the second one builds the module command.
+To compile and install the module to the target file system copy on the host, execute the following lines in the petalinux project directory:
 
-```
-petalinux-build -c kernel
-
-petalinux-build -c dpu
-```
-
-- It is also needed to rebuild PetaLinux bootable images so that the images are updated with the updated target filesystem copy.
-
-```
-petalinux-build -x package
-```
-
-- The PetaLinux command to compile the module, install it to the target filesystem host copy and update the bootable images can be executed.
-
-```
-petalinux-build
-```
-
-- Finally, the module has to be added to the RootFS file system. First of all go to the directory `<petalinux_project_directory>/project-spec/meta-user/conf/` and add the following line to the file `user-rootfsconfig`. This process is explained in the [Petalinux Tools Documentation. Reference Guide. Page 83](https://www.xilinx.com/support/documentation/sw_manuals/xilinx2019_2/ug1144-petalinux-tools-reference-guide.pdf) in the *Add existent recipe into RootFS*.
+- The module has to be added to the RootFS file system. First of all, go to the directory `<petalinux_proj_directory>/project-spec/meta-user/conf/` and add the following line to the file `user-rootfsconfig`. This process is explained in the [Petalinux Tools Documentation. Reference Guide. Page 83](https://www.xilinx.com/support/documentation/sw_manuals/xilinx2019_2/ug1144-petalinux-tools-reference-guide.pdf) in the *Add existent recipe into RootFS*.
 
 ```
 CONFIG_dpu
@@ -475,7 +486,7 @@ CONFIG_dpu
 Open now a terminal in the PetaLinux project directory, and add the module to the file system. Enter the following command, and access the folder indicated below.
 
 ```
-petalinux-config -c rootfs
+$ petalinux-config -c rootfs
 ```
 
 > modules > dpu
@@ -486,20 +497,56 @@ To add the module press the "y" key and select the `<save>` option. Now exit the
 
 ![alt text](https://raw.githubusercontent.com/UviDTE-FPSoC/vitis-dnn/master/ZedBoard_DNNs/GuideImages/DPU_DriverRootFS2.png)
 
-- Re-build the project
+
+- Now, execute the following commands. The first line builds the kernel, and the second one builds the module command.
 
 ```
-petalinux-build
+$ petalinux-build -c kernel
+
+$ petalinux-build -c dpu
 ```
+
+- It is also needed to rebuild PetaLinux bootable images so that the images are updated with the updated target filesystem copy.
+
+```
+$ petalinux-build -x package
+```
+
+- The PetaLinux command to compile the module, install it to the target filesystem host copy and update the bootable images can be executed.
+
+```
+$ petalinux-build
+```
+
+
+
+#### DNNDK and autostart package installation
+Once the DPU drivers have been installed into the project, it is turn for the DNNDK package. Go back to the `zcu102-dpu-trd-2019-1` folder that was untared from the `.bsp` file when copying the DPU drivers folder [here](#dpu-drivers).
+
+```
+$ cd <zcu102-dpu-trd-2019-1>/project-spec/meta-user/recipes-apps/
+```
+
+The folder with the DNNDK package is called `DNNDK`, and the one with the autostart one is called `autostart`. Copy both folders to your project under `<petalinux_proj_directory>/project-spec/meta-user/recipes-apps/`. This packages have to bee added to the RoofFS file system. Therefore, add the lines `CONFIG_autostart` and `CONFIG_dnndk` to the `user-rootfsconfig` at `<petalinux_proj_directory>/project-spec/meta-user/conf/`. Now, execute the following command.
+
+```
+$ petalinux-config -c rootfs
+```
+
+In the config manager, add the autostart and dnndk packages as once done for the dpu. The packages can be found at:
+
+> apps > autostart
+>
+> user packages > dnndk
+
+
 
 #### Driver and packages combined installation
-If there is more than one driver or aditional package that you want to include to the PetaLinux configuration, this method is the most comfortable one. The idea would be to use a script where you can add all the drivers and packages not included in the rootfs of PetaLinux so that you don't have to compile them individually.
+If there is more than one driver or aditional package that you want to include to the PetaLinux configuration, this method is the most comfortable one. The idea would be to use a script where you can add all the drivers and packages not included in the rootfs of PetaLinux so that you don't have to compile them individually. If you just want to work with the DNNDK v3.1 package, it is recommended to skip this section. If you need to install libraries such as `apt` or `dnndk`, a solution is exposed here.
 
-The best example can be found in the DPU-TRD `.bsp` file that was used to obtain the DPU drivers. To donload and extract this file, check the section of this guide [DPU drivers](#dpu-drivers). This file, basically, is a pre-configured PetaLinux project for ZCU102 where Xilinx has done all the necessary configuration in order to perform inference with this board. Most of this configuration should be done as well in our ZedBoard project, to ensure the DNN models can be correctly ran.
+The best example can be found in the DPU-TRD `.bsp` file that can be found in the [Vitis-AI repository](https://github.com/Xilinx/Vitis-AI/tree/master/DPU-TRD/prj/Vivado/dpu_petalinux_bsp). The file can be downloaded in a similar way to the `.bsp` file untar done in section [DPU drivers](#dpu-drivers). This file is a pre-configured PetaLinux project for ZCU102 where Xilinx has done all the necessary configuration in order to perform inference with this a board using Vitis-AI instead of the DNNDK v3.1 package. Visis-AI is not compatible with Zynq-7000 family chips at the writing of this guide, but in this DPU-TRD there is a good way of adding several libraries that could result to be really useful.
 
-All the packages that are included in the PetaLinux project can be found in the directory `/<proj_or_bsp_directory>/project-spec/configs/`. The file named rootfs_config contains all the packages that can be included in your configuration, and the ones that are actually included are finished with a `=y`. In the folder where you extracted the `.bsp` file, you can also enter this file, and check the configuration that was made in order to run the DPU with ZCU102. It wouldn't hurt to make sure your ZedBoard project has a similar configuration. The easiest way to change this configuration would be with a console interface you can acces by openning a terminal in your project directory and typing in `petalinux-config -c rootfs`. This is the same we did previously to individually install the DPU drivers, although these drivers are not included by default to PetaLinux, so you have to copy them into the project manually.
-
-In the DPU-TRD `.bsp` file, Xilinx didn't only add the DPU drivers as the only external package, but they added more. The file where all the external packages are included is found in the `/<bso_directory>/project-spec/meta-user/recipes-core/packagegroups/` under the name of `packagegroup-petalinux-xlnx-ai.bb`. The content of this file is now shown.
+In the DPU-TRD `.bsp` file, folder where all the external packages are included is found at `/<bso_directory>/project-spec/meta-user/recipes-core/packagegroups/`. the `packagegroup-petalinux-xlnx-ai.bb` file. Its content is now shown.
 
 ```
 DESCRIPTION = "Xlnx AI Packages"
@@ -564,9 +611,9 @@ XLNX_AI_PACKAGES = " \
 RDEPENDS_${PN} = "${XLNX_AI_PACKAGES}"
 ```
 
-In the libs tab we can find the libraries that the target could need when running ingerrence. The utils tab includes several command libraries which can be useful. The one that is needed for sure would be `dpkg`, as to install the `vitis-ai-runtime` package for any device, you need to install `.deb` files, for which you need to execute `dpkg`.
+In the libs tab we can find the libraries that the target could need when running inference. The utils tab includes several command libraries which can be useful. The one used to install `.deb` packages would be `dpkg`. There is also others such as `apt`, which is the linux installation manager.
 
-In the packages tab, the DPU is included. Therefore, this script can be copied, avoiding having to create one from scrach. Go to `/<ZedBoard_proj_directory>/project-spec/meta-user/` and create the directory `/recipes-core/packagegroups/`, copying the file `packagegroup-petalinux-xlnx-ai.bb` to it. You can now include or remove the packages that you want. The script we end up with is the follwoing.
+In the packages tab, the DPU is included. Therefore, this script can be copied, avoiding having to create one from scrach. Go to your `/<petalinux_proj_directory>/project-spec/meta-user/` and create the directory `/recipes-core/packagegroups/`, copying the file `packagegroup-petalinux-xlnx-ai.bb` to it. You can now include or remove the packages that you want. The script you could end up with would look as follows.
 
 ```
 DESCRIPTION = "Xlnx AI Packages"
@@ -611,7 +658,9 @@ XLNX_AI_APP = " \
 "
 
 XLNX_AI_PACKAGES = " \
+  autostart \
 	dpu \
+  dnndk \
 	${XLNX_AI_LIBS} \
 	${XLNX_AI_UTILS} \
 	${XLNX_AI_APP} \
@@ -620,41 +669,20 @@ XLNX_AI_PACKAGES = " \
 RDEPENDS_${PN} = "${XLNX_AI_PACKAGES}"
 ```
 
-If you haven't included the DPU drivers yet, go back to sections [DPU drivers](#dpu-drivers) and
-[DPU device tree definition](#dpu-device-tree-definition). In the directory the DPU drivers are, `/<bsp_directory>/project-spec/meta-user/recipes-ai/`, you can find most of the other packages that we removed from the `XILINX_AI_PACKAGES` section in the file `packagegroup-petalinux-xlnx-ai.bb`.
+If you haven't included the DPU drivers yet, go back to sections [DPU drivers](#dpu-drivers) and [DPU device tree definition](#dpu-device-tree-definition).
 
 The installation of this packages is now analog to the DPU drivers individual installation.
 
-- The packages have to be added to the RootFS file system. First of all go to the directory `<petalinux_project_directory>/project-spec/meta-user/conf/` and add the following line to the file `user-rootfsconfig`. This process is explained in the [Petalinux Tools Documentation. Reference Guide. Page 83](https://www.xilinx.com/support/documentation/sw_manuals/xilinx2019_2/ug1144-petalinux-tools-reference-guide.pdf) in the *Add existent recipe into RootFS*.
+- The packages have to be added to the RootFS file system. First of all go to the directory `<petalinux_proj_directory>/project-spec/meta-user/conf/` and add the following line to the file `user-rootfsconfig`. This process is explained in the [Petalinux Tools Documentation. Reference Guide. Page 83](https://www.xilinx.com/support/documentation/sw_manuals/xilinx2019_2/ug1144-petalinux-tools-reference-guide.pdf) in the *Add existent recipe into RootFS*.
 
 ```
 CONFIG_packagegroup-petalinux-xlnx-ai
 ```
 
-- To compile and install the modules to the target file system copy on the host, execute the following lines in the petalinux project directory. The first line builds the kernel, and the second one builds the modules command.
+- Open now a terminal in the PetaLinux project directory, and add the module to the file system. Enter the following command, and access the folder indicated below.
 
 ```
-petalinux-build -c kernel
-
-petalinux-build -c packagegroup-petalinux-xlnx-ai
-```
-
-- It is also needed to rebuild PetaLinux bootable images so that the images are updated with the updated target filesystem copy.
-
-```
-petalinux-build -x package
-```
-
-- The PetaLinux command to compile the module, install it to the target filesystem host copy and update the bootable images can be executed.
-
-```
-petalinux-build
-```
-
-Open now a terminal in the PetaLinux project directory, and add the module to the file system. Enter the following command, and access the folder indicated below.
-
-```
-petalinux-config -c rootfs
+$ petalinux-config -c rootfs
 ```
 
 > user packages > packagegroup-petalinux-xlnx-ai
@@ -665,10 +693,24 @@ To add the module press the "y" key and select the `<save>` option. Now exit the
 
 ![alt text](https://raw.githubusercontent.com/UviDTE-FPSoC/vitis-dnn/master/ZedBoard_DNNs/GuideImages/DPU_DriverRootFS4.png)
 
-- Re-build the project
+- To compile and install the modules to the target file system copy on the host, execute the following lines in the petalinux project directory. The first line builds the kernel, and the second one builds the modules command.
 
 ```
-petalinux-build
+$ petalinux-build -c kernel
+
+$ petalinux-build -c packagegroup-petalinux-xlnx-ai
+```
+
+- It is also needed to rebuild PetaLinux bootable images so that the images are updated with the updated target filesystem copy.
+
+```
+$ petalinux-build -x package
+```
+
+- The PetaLinux command to compile the module, install it to the target filesystem host copy and update the bootable images can be executed.
+
+```
+$ petalinux-build
 ```
 
 
@@ -678,9 +720,7 @@ The installation and execution of the DNNDK v3.1 package and the DPU need to hav
 
 > - Filesystem > base > tar > tar
 >
-> - Filesystem > console > utils > grep > grep
->
-> - Filesystem > console > utils > pkgconfig > pkgconfig
+> - Filesystem > console > utils > vim > vim
 >
 > - Filesystem > libs > opencv > opencv
 >
@@ -692,9 +732,7 @@ The installation and execution of the DNNDK v3.1 package and the DPU need to hav
 >
 > - Filesystem > libs > opencv > opencv-dbg
 >
-> - Filesystem > misc > python3 > python3
->
-> - Filesystem > devel > make > make
+> - Filesystem > misc > packagegroup-core-buildessential > packagegroup-core-buildessential
 >
 > - Petalinux Package Groups > packagegroup-petalinux-pyton-modules > packagegroup-petalinux-pyton-modules
 >
@@ -703,7 +741,7 @@ The installation and execution of the DNNDK v3.1 package and the DPU need to hav
 - To add this libraries, follow this procedure:
 
 ```
-petalinux-config -c rootfs
+$ petalinux-config -c rootfs
 ```
 
 > Filesystem > base > tar > tar
@@ -728,10 +766,39 @@ petalinux-config -c rootfs
 
 The rest of the libraries would be added in an analog manner.
 
-- Re-build the project
+It is important to add all the opencv libraries under `>> file system >> libs >> opencv`, as the compilation of them generates a file `opencv.pc` in the RootFS file system at `<rootfs_partition>/usr/lib/pkgconfig/` that is necessary to compile the DNN applications when using the DNNDK. It is also important to add the `packagegroup-petalinux-pyton-modules`, as they enable executing the `pip` command, which is neccesary to install some python dependencies later on. The `packagegroup-core-buildessential` is fundamental to execute the `make` command when compiling applications in the ZedBoard. It is also recommended to add the `tar` package just in case it is necessary to untar some files and the `vim` text editor, as a console editor can be very helpful when working with ZedBoard.
+
+- Re-build the project.
 
 ```
-petalinux-build
+$ petalinux-build
+```
+
+
+
+#### Additional configuration
+All the steps followed in this sub-section are performed as specified in [AR# 73058](https://www.xilinx.com/support/answers/73058.html).
+
+- Expand the available memory of the kernel:
+
+```
+$ petalinux-config -c kernels
+```
+
+> kernel features > maximum zone Border
+
+Modify the value from 11 to 15.
+
+- Open the file `dpu.bbappend` at `<petalinux_proj_directory/project-spec/meta-user/recipes-modules/dpu` and add the following line to the end of the file in order to set the DPU to autoload.
+
+```
+KERNEL_MODULE_AUTOLOAD += "dpu"
+```
+
+Build the PetaLinux design and generate the BOOT.bin file:
+
+```
+$ petalinux-package --boot --force --fsbl ./images/linux/zynq_fsbl.elf --fpga ./images/linux/system.bit --u-boot
 ```
 
 
@@ -799,19 +866,61 @@ cd /<dnndk_v3.1_extraction_directory>/host_x86
 sudo ./install.sh
 ```
 
+Finally, mount the SD card as indicated [here](https://github.com/UviDTE-FPSoC/Zynq7000-examples/tree/master/SD-operating-system/PetaLinux/2019.2#boot-petalinux-image-on-hardware-with-an-sd-card), sections `Create SD card partitions`, `Configure PetaLinux to boot with SD card` and `Boot PetaLinux image on Hardware with SD card`.
+
 
 
 #### Setting up the ZedBoard
 
-It is necessary to copy the ZedBoard package into the board. Execute the following commands with a SSH connection created with the ZedBoard. Check this [guide]() to create this type of connection.
+It is necessary to copy the ZedBoard package into the board. In the board, create the folder `xilinx-dnndk-v3.1` under `/home/root/`:
 
 ```
-cd /<xilinx-dnndk-v3.1_directory>
+# cd /home//root/
 
-sudo scp -r ./ZedBoard root@192.168.0.21:~/xilinx-dnndk-v3.1
+mkdir xilinx-dnndk-v3.1
 ```
 
-Once the folder has been copied to de board, you are ready to install the package.
+Execute the following commands with a SSH connection created with the ZedBoard. Check this [guide](https://github.com/UviDTE-FPSoC/Zynq7000-examples/tree/master/SD-operating-system/PetaLinux/2019.2#boot-petalinux-image-on-hardware-with-an-sd-card) to create this type of connection, in section `SSH conection`.
+
+
+```
+$ cd /<xilinx-dnndk-v3.1_directory>
+
+$ sudo scp -r ./ZedBoard root@192.168.0.21:~/xilinx-dnndk-v3.1
+```
+
+Sometimes I get this error before I'm able to copy the folder to the board.
+
+```
+$ sudo scp -r ./ZedBoard root@192.168.0.21:~/xilinx-dnndk-v3.1
+[sudo] password for arroas:
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@    WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!     @
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+IT IS POSSIBLE THAT SOMEONE IS DOING SOMETHING NASTY!
+Someone could be eavesdropping on you right now (man-in-the-middle attack)!
+It is also possible that a host key has just been changed.
+The fingerprint for the RSA key sent by the remote host is
+SHA256:NXknQw8Sg71ieM+vdgvNB0o8PyVa9bwcBdwYIME8LFA.
+Please contact your system administrator.
+Add correct host key in /root/.ssh/known_hosts to get rid of this message.
+Offending RSA key in /root/.ssh/known_hosts:1
+  remove with:
+  ssh-keygen -f "/root/.ssh/known_hosts" -R "192.168.0.21"
+RSA host key for 192.168.0.21 has changed and you have requested strict checking.
+Host key verification failed.
+lost connection
+```
+
+To solve it, run the following command.
+
+```
+$ sudo ssh-keygen -f "/root/.ssh/known_hosts" -R "192.168.0.21"
+```
+
+
+Once the folder has been copied to de board, you are ready to install the package. This package installs DPU drivers, the DNNDK package and some python libs. The DPU and DNNDK have already been installed though. Therefore, the DPU drivers installation should not be re-performed. A different story happnes with the DNNDK, as the installation done in the PetaLinux project doesn't create the `include` folder needed to compile applications in the ZedBoard. To solve this issue, run the `install.sh` script, deleting all the code related with the DPU driver's installation.
 
 ```
 # cd ~/xilinx-dnndk-v3.1/ZedBoard/
@@ -819,7 +928,42 @@ Once the folder has been copied to de board, you are ready to install the packag
 # ./install.sh
 ```
 
+This is the code you should delete:
+
+```
+echo "Install DPU Driver ..."
+
+mkdir -p /lib/modules/$(uname -r)/extra/ || install_fail
+touch /lib/modules/$(uname -r)/modules.order
+touch /lib/modules/$(uname -r)/modules.builtin
+cp pkgs/driver/dpu.ko /lib/modules/$(uname -r)/extra/ || install_fail
+
+depmod -a
+rst="$(lsmod | grep dpu 2>&1)"
+if [ -n "$rst" ] ; then
+    rmmod dpu
+    [ $? != 0 ] && install_fail
+fi
+modprobe dpu
+[ $? != 0 ] && install_fail
+
+if ! grep -Fxq "dpu" /etc/modules ; then
+    sh -c 'echo "dpu" >> /etc/modules' ;
+    [ $? != 0 ] && install_fail
+fi
+
+chmod og+rw /sys/module/dpu/parameters/cache || install_fail
+chmod og+rw /sys/module/dpu/parameters/coremask || install_fail
+chmod og+rw /sys/module/dpu/parameters/debuglevel || install_fail
+chmod og+rw /sys/module/dpu/parameters/extension || install_fail
+chmod og+rw /sys/module/dpu/parameters/mode || install_fail
+chmod og+rw /sys/module/dpu/parameters/profiler || install_fail
+chmod og+rw /sys/module/dpu/parameters/timeout || install_fail
+chmod og+rw /sys/module/dpu/parameters/accipmask || install_fail
+```
+
 > NOTE: During the installation of the package, it is necesary that the file `opencv.pc` is located in the RootFS `/usr/lib/pkgconfig/` folder. The only configuration that seems to generate this file at this location is adding the opencv package to the RootFS file system with the command `petalinux-config -c rootfs` at the `> Filesystem > libs > opencv`. The addition of the needed libraries is better explained in section [Add libraries to RootFS](#add-libraries-to-rootfs).
+
 
 
 
@@ -1537,7 +1681,7 @@ net="inception_v1"
 CPU_ARCH="arm32"
 DNNC_MODE="debug"
 dnndk_board="ZedBoard"
-dnndk_dcf="../../../dcf/ZedBoard.dcf"
+dnndk_dcf="../../../dcf/custom_zedboard.dcf"
 
 echo "Compiling Network ${net}"
 
@@ -1587,11 +1731,14 @@ $DNNC   --parser=tensorflow                         \
 
 After compilation is succesful, the results should be sabed to the `dnnc_output` folder. The message printed in the terminal is the following.
 
+
+USE DLET TO CREATE CONFIGURATION DCF
+
 ```
 Compiling Network inception_v1
 DNNDK      : 3.1
 Board Name : ZedBoard
-DCF file   : ../../../dcf/ZedBoard.dcf
+DCF file   : ../dcf/custom_zedboard.dcf
 CPU Arch   : arm32
 DNNC Mode  : debug
 dnnc version v3.00
@@ -1611,7 +1758,7 @@ DNNC kernel list info for network "inception_v1"
                              Kernel Name : inception_v1_0
 --------------------------------------------------------------------------------
                              Kernel Type : DPUKernel
-                               Code Size : 0.26MB
+                               Code Size : 0.27MB
                               Param Size : 6.31MB
                            Workload MACs : 2996.75MOPS
                          IO Memory Space : 0.76MB
@@ -2473,7 +2620,7 @@ When creating a ZedBoard application it is important to make sure the CPU Arch s
 Compiling Network inception_v3
 DNNDK      : 3.1
 Board Name : ZedBoard
-DCF file   : ZedBoard.dcf
+DCF file   : ../dcf/custom_zedboard.dcf
 CPU Arch   : arm32
 DNNC Mode  : debug
 dnnc version v3.00
@@ -2493,7 +2640,7 @@ DNNC kernel list info for network "inception_v3"
                              Kernel Name : inception_v3_0
 --------------------------------------------------------------------------------
                              Kernel Type : DPUKernel
-                               Code Size : 0.60MB
+                               Code Size : 0.61MB
                               Param Size : 22.72MB
                            Workload MACs : 11426.44MOPS
                          IO Memory Space : 1.67MB
@@ -2648,7 +2795,7 @@ sudo scp -r ./ZedBoard_Inception_v3 root@192.168.0.21:~/xilinx-dnndk-v3.1/ZedBoa
 
 
 #### TensorFlow Mobilenet_v1
-The first step to create an application for the TensorFlow inception_v4 model is to donwload the pre-trained model [here](https://www.xilinx.com/bin/public/openDownload?filename=tf_mobilenetv1_1.0_imagenet_224_224_1.1.zip). The name of this model in the repository is `tf_mobilenetv1_1.0_imagenet_224_224_1.14G_1.1`. This name indicates that the model uses the TensorFlow framework, `tf`, the name of the network itself, `mobilenetv1_1.0`, the dataset it was trained with, `imagenet`, the size of the images it was trained with, `224x224`, the computation of the model (how many GPOS per image), `1.14G` and the version of Vitis-AI the network was trained for, `v1.1`.
+The first step to create an application for the TensorFlow mobilenet_v1_1.0 model is to donwload the pre-trained model [here](https://www.xilinx.com/bin/public/openDownload?filename=tf_mobilenetv1_1.0_imagenet_224_224_1.1.zip). The name of this model in the repository is `tf_mobilenetv1_1.0_imagenet_224_224_1.14G_1.1`. This name indicates that the model uses the TensorFlow framework, `tf`, the name of the network itself, `mobilenetv1_1.0`, the dataset it was trained with, `imagenet`, the size of the images it was trained with, `224x224`, the computation of the model (how many GPOS per image), `1.14G` and the version of Vitis-AI the network was trained for, `v1.1`.
 
 In this application the target device is a ZedBoard, therefore we are using the DNNDK v3.1 rather than Vitis-AI v1.1, which won't be a problem at all.
 
@@ -2883,7 +3030,7 @@ net="mobilenet_v1"
 CPU_ARCH="arm32"
 DNNC_MODE="debug"
 dnndk_board="ZedBoard"
-dnndk_dcf="ZedBoard.dcf"
+dnndk_dcf="../dcf/dpu-05302000-302000-202005302000-2000-00.dcf"
 
 echo "Compiling Network ${net}"
 
@@ -2931,13 +3078,29 @@ $DNNC   --parser=tensorflow                         \
        --net_name=${net}
 ```
 
-When creating a ZedBoard application it is important to make sure the CPU Arch selected is `arm32`, otherwise the DPU model won't work. It is also important to specify where is your board `.dcf` file located. If you are using the Petalinux Xilinx image for ZedBoard that can be donwloaded [here](https://www.xilinx.com/products/design-tools/ai-inference/ai-developer-hub.html#edge), you'll find this file in the `<dnndk_package_v3.1_directory>/host_x86/dcf/ZedBoard.dcf`. If you have a custom project, you can generate the `.dcf` file with the `DLet` tool explained in section [TensorFlow model](#tensorflow-model), subsection `Network Compilation >> 1. DLet`. The output of the compilation tool when using the Xilinx Petalinux image is the following, as this image doesn't have the `depthWiseConv` layer enabled. To check if your DPU has this layer enabled, you can also run the command `dexplorer -w` in your board.
+When creating a ZedBoard application it is important to make sure the CPU Arch selected is `arm32`, otherwise the DPU model won't work. It is also important to specify where is your board `.dcf` file located. If you are using the Petalinux Xilinx image for ZedBoard that can be donwloaded [here](https://www.xilinx.com/products/design-tools/ai-inference/ai-developer-hub.html#edge), you'll find this file in the `<dnndk_package_v3.1_directory>/host_x86/dcf/ZedBoard.dcf`. If you have a custom project, you can generate the `.dcf` file with the `DLet` tool explained in section [TensorFlow model](#tensorflow-model), subsection `Network Compilation >> 1. DLet`. The output of the compilation tool when using the Xilinx Petalinux image is the following, as this image doesn't have the `depthWiseConv` layer enabled. To check if your DPU has this layer enabled, you can also run the command `dexplorer -w` in your board. If you use a custom `.dcf` file, make sure you don't modify its name, or the file might not be properly used by the DNNC tool. To create the file, locate the .hwh file and run the following command.
+
+```
+$ dlet -f /media/arroas/HDD/MinhasCousas/EEI/Mestrado/2_Curso/TFM/vitis-dnn/ZedBoard_DNNs/ZedBoard_DPU_2019_2/ZedBoard_DPU_2019_2.srcs/sources_1/bd/design_1/hw_handoff/design_1.hwh
+```
+
+The output should look like this:
+
+```
+[DLet]Generate DPU DCF file dpu-05302000-302000-202005302000-2000-00.dcf successfully.
+*** stack smashing detected ***: <unknown> terminated
+Aborted (core dumped)
+```
+
+I now re-name the file to `custom_zedboard.dcf`, and execute the DNNC tool.
+
+Now you can run the compilation script, which should have the following output:
 
 ```
 Compiling Network mobilenet_v1
 DNNDK      : 3.1
 Board Name : ZedBoard
-DCF file   : ../dcf/ZedBoard.dcf
+DCF file   : ../dcf/custom_zedboard.dcf
 CPU Arch   : arm32
 DNNC Mode  : debug
 dnnc version v3.00
@@ -2945,5 +3108,410 @@ DPU Target : v1.4.0
 Build Label: Aug  9 2019 05:23:25
 Copyright @2019 Xilinx Inc. All Rights Reserved.
 
-[DNNC][Error] layer [MobilenetV1_MobilenetV1_Conv2d_1_depthwise_depthwise] (type: DepthWiseConv) is not supported for current DPU configuration file.
+[DNNC][Warning] layer [MobilenetV1_Logits_SpatialSqueeze] (type: Squeeze) is not supported in DPU, deploy it in CPU instead.
+[DNNC][Warning] layer [MobilenetV1_Predictions_Softmax] (type: Softmax) is not supported in DPU, deploy it in CPU instead.
+
+DNNC Kernel topology "mobilenet_v1_kernel_graph.jpg" for network "mobilenet_v1"
+DNNC kernel list info for network "mobilenet_v1"
+                               Kernel ID : Name
+                                       0 : mobilenet_v1_0
+                                       1 : mobilenet_v1_1
+
+                             Kernel Name : mobilenet_v1_0
+--------------------------------------------------------------------------------
+                             Kernel Type : DPUKernel
+                               Code Size : 0.22MB
+                              Param Size : 4.03MB
+                           Workload MACs : 1137.48MOPS
+                         IO Memory Space : 0.72MB
+                              Mean Value : 0, 0, 0,
+                              Node Count : 15
+                            Tensor Count : 16
+                    Input Node(s)(H*W*C)
+MobilenetV1_MobilenetV1_Conv2d_0_Conv2D(0) : 224*224*3
+                   Output Node(s)(H*W*C)
+MobilenetV1_Logits_Conv2d_1c_1x1_Conv2D(0) : 1*1*1001
+
+
+                             Kernel Name : mobilenet_v1_1
+--------------------------------------------------------------------------------
+                             Kernel Type : CPUKernel
+                    Input Node(s)(H*W*C)
+       MobilenetV1_Logits_SpatialSqueeze : 1*1*1001
+                   Output Node(s)(H*W*C)
+         MobilenetV1_Predictions_Softmax : 1*1*1001
+```
+
+
+
+
+
+
+Five results for `tf_mobilenetv1_1.0`.
+
+```
+DPU Task Execution time: 19458us
+
+DPU Task Execution time: 19459us
+
+DPU Task Execution time: 19457us
+
+DPU Task Execution time: 19458us
+
+DPU Task Execution time: 19465us
+```
+
+
+
+
+
+
+
+
+
+
+#### TensorFlow Mobilenet_v2
+The first step to create an application for the TensorFlow mobilenet_v1_1.4 model is to donwload the pre-trained model [here](https://www.xilinx.com/bin/public/openDownload?filename=tf_mobilenetv2_1.4_imagenet_224_224_1.1.zip). The name of this model in the repository is `tf_mobilenetv2_1.4_imagenet_224_224_1.16G_1.1`. This name indicates that the model uses the TensorFlow framework, `tf`, the name of the network itself, `mobilenetv2_1.4`, the dataset it was trained with, `imagenet`, the size of the images it was trained with, `224x224`, the computation of the model (how many GPOS per image), `1.16G` and the version of Vitis-AI the network was trained for, `v1.1`.
+
+In this application the target device is a ZedBoard, therefore we are using the DNNDK v3.1 rather than Vitis-AI v1.1, which won't be a problem at all.
+
+-----------------------------------------------------------------------------
+
+**Quantization**.
+
+The quantization of the model requires two main steps. First of all, the pre-processing of the calibration images, due to the fact that they are not pre-processed in the frozen graph. To do this task, we create two python scripts, one with the operations that are going to take place, and another one with the definition of the functions.
+
+```python
+from mobilenet_v2_preprocessing import *
+
+# calib_image_dir = "../../calibration_data/imagenet_images/"
+calib_image_dir = "/media/arroas/HDD/MinhasCousas/EEI/Mestrado/2_Curso/TFM/Inference_Images/calibration_data/imagenet_images/"
+# calib_image_list = "../../calibration_data/imagenet_calib.txt"
+calib_image_list = "/media/arroas/HDD/MinhasCousas/EEI/Mestrado/2_Curso/TFM/Inference_Images/calibration_data/imagenet_calib.txt"
+calib_batch_size = 1
+def calib_input(iter):
+  images = []
+  line = open(calib_image_list).readlines()
+  for index in range(0, calib_batch_size):
+    curline = line[iter * calib_batch_size + index]
+    calib_image_name = curline.strip()
+    source = cv2.imread(calib_image_dir + calib_image_name)
+    image = cv2.resize(source, (224, 224))
+    image = mean_image_subtraction(image)
+    image = normalize(image)
+    images.append(image)
+  return {"input": images}
+```
+
+```python
+import cv2
+from sklearn import preprocessing
+
+def mean_image_subtraction(image):
+  B, G, R = cv2.split(image)
+  image = cv2.merge([R, G, B])
+  return image
+
+def normalize(image):
+  image=image/256.0
+  return image
+```
+
+For this pre-processing task the images are going to be resized with the `cv2.resize` function from `OpenCV`. This operation makes sure all input images are `224x224` pixels. After this operation, mean substraction and normalization is applied to convert the images to `RGB` format and to make sure all the image layer values are in the 0 to 1 range.
+
+Once the pre-processing script is ready, a quantization script is going to be created, `decent_q.sh`. It is important to make sure the input and ouput node names are correctly indicated. To check these names, enter the inception_v4 directory downloaded from the model-zoo repository, enter the float folder and execute the following command.
+
+```
+$ cd float
+
+$ decent_q inspect --input_frozen_graph mobilenet_v2_1.4_224.pb
+```
+
+One possibility for both the input and the output node is found.
+
+```
+Found 1 possible inputs: (name=input, type=float(1), shape=[?,224,224,3])
+Found 1 possible outputs: (name=MobilenetV2/Predictions/Reshape_1, op=Reshape)
+```
+
+With this information, create the quantization script, making sure you input the correct image sizes, node names and frozen graph input.
+
+```
+decent_q quantize \
+  --input_frozen_graph ./float/mobilenet_v2_1.4_224.pb \
+  --input_nodes input \
+  --input_shapes ?,224,224,3 \
+  --output_nodes MobilenetV2/Predictions/Reshape_1 \
+  --input_fn mobilenet_v2_input_fn.calib_input \
+  --method 1 \
+  --gpu 0 \
+  --calib_iter 100 \
+```
+
+Run the quantization script, `sh decent_q.sh`, which should print this output if properly executed.
+
+```
+INFO: Checking Float Graph...
+INFO: Float Graph Check Done.
+INFO: Calibrating for 100 iterations...
+100% (100 of 100) |######################| Elapsed Time: 0:01:36 Time:  0:01:36
+INFO: Calibration Done.
+INFO: Generating Deploy Model...
+[DEPLOY WARNING] Node MobilenetV2/Predictions/Reshape_1(Type: Reshape) is not quantized and cannot be deployed to DPU,because it has unquantized input node: MobilenetV2/Predictions/Softmax. Please deploy it on CPU.
+INFO: Deploy Model Generated.
+********************* Quantization Summary *********************      
+INFO: Output:       
+  quantize_eval_model: ./quantize_results/quantize_eval_model.pb       
+  deploy_model: ./quantize_results/deploy_model.pb
+```
+
+Once the quantization model has been correctly created, we are going to evaluate both the frozen and quantized models and compare the loss in accuracy. To do this we use the evaluation script from section [TensorFlow model](#tensorflow-model), subsection 4, Output and Evaluation. Copy the code to a python script in your inception_v4 model directory, and make sure the input_fn.py script call within the code has the correct name, which in this case should be `mobilenet_v1_input_fn.py`, rather than `inception_v1_input_fn.py`. Now, add to the beggining of your `mobilenet_v1_input_fn.py` the following code needed for the evaluation.
+
+```python
+from mobilenet_v2_preprocessing import *
+
+def eval_input(iter, eval_image_dir, eval_image_list, class_num, eval_batch_size):
+  images = []
+  labels = []
+  line = open(eval_image_list).readlines()
+  for index in range(0, eval_batch_size):
+    curline = line[iter * eval_batch_size + index]
+    [image_name, label_id] = curline.split(' ')
+    image = cv2.imread(eval_image_dir + image_name)
+    image = cv2.resize(image, (224, 224))
+    image = mean_image_subtraction(image)
+    image = normalize(image)
+    images.append(image)
+    labels.append(int(label_id) + 1)
+  lb = preprocessing.LabelBinarizer()
+  lb.fit(range(0, class_num))
+  labels = lb.transform(labels)
+  return {"input": images, "labels": labels}
+
+# calib_image_dir = "../../calibration_data/imagenet_images/"
+...
+
+```
+
+You are now ready to call the evaluation of the frozen graph with the following script.
+
+```
+#!/bin/sh
+
+set -e
+
+# Please set your imagenet validation dataset path here,
+IMAGE_DIR=/media/arroas/HDD/MinhasCousas/EEI/Mestrado/2_Curso/TFM/Inference_Images/calibration_data/imagenet_images/
+IMAGE_LIST=/media/arroas/HDD/MinhasCousas/EEI/Mestrado/2_Curso/TFM/Inference_Images/calibration_data/val.txt
+
+# Please set your batch size settings here, #IMAGES = VAL_BATCHES * BATCH_SIZE
+# Commonly there are 5w image in total for imagenet validation dataset
+EVAL_BATCHES=10		#1000
+BATCH_SIZE=50
+
+python mobilenet_v2_eval.py \
+  --input_frozen_graph float/mobilenet_v2_1.4_224.pb \
+  --input_node input \
+  --output_node MobilenetV2/Predictions/Reshape_1 \
+  --eval_batches $EVAL_BATCHES \
+  --batch_size $BATCH_SIZE \
+  --eval_image_dir $IMAGE_DIR \
+  --eval_image_list $IMAGE_LIST \
+  --gpu 0
+```
+
+You can copy the avobe code and save it wiht the extension `.sh` and run it with the command `sh <name>.sh` with the `decent` environment activated. The result should be the following.
+
+```
+Start Evaluation for 10 Batches...
+100% (10 of 10) |#############################################| Elapsed Time: 0:00:29 Time:  0:00:29
+Accuracy: Top1: 0.6879999995231628, Top5: 0.9
+```
+
+Now, repeat the same proccess -for the quantization model.
+
+```
+#!/bin/sh
+
+set -e
+
+# Please set your imagenet validation dataset path here,
+IMAGE_DIR=/media/arroas/HDD/MinhasCousas/EEI/Mestrado/2_Curso/TFM/Inference_Images/calibration_data/imagenet_images/
+IMAGE_LIST=/media/arroas/HDD/MinhasCousas/EEI/Mestrado/2_Curso/TFM/Inference_Images/calibration_data/val.txt
+
+# Please set your batch size settings here, #IMAGES = VAL_BATCHES * BATCH_SIZE
+# Commonly there are 5w image in total for imagenet validation dataset
+EVAL_BATCHES=10		#1000
+BATCH_SIZE=50
+
+python mobilenet_v2_eval.py \
+  --input_frozen_graph quantize_results/quantize_eval_model.pb \
+  --input_node input \
+  --output_node MobilenetV2/Predictions/Reshape_1 \
+  --eval_batches $EVAL_BATCHES \
+  --batch_size $BATCH_SIZE \
+  --eval_image_dir $IMAGE_DIR \
+  --eval_image_list $IMAGE_LIST \
+  --gpu 0
+```
+
+The result of the evalutaion should be similar to this one.
+
+```
+Start Evaluation for 10 Batches...
+100% (10 of 10) |#############################################| Elapsed Time: 0:01:08 Time:  0:01:08
+Accuracy: Top1: 0.05599999874830246, Top5: 0.11199999898672104
+```
+
+|Accuracy|Frozen Graph      |Quantized Graph    |
+|--------|------------------|-------------------|
+|Top1    |0.6879999995231628|0.05599999874830246|
+|Top5    |0.9               |0.11199999898672104|
+
+
+
+There is a problem with the image preprocesing that has produced a great decrease in accuracy.
+
+-----------------------------------------------------------------------------
+
+**Compilation**.
+
+The compilation process is performed with the DNNC tool, for which we create the following script.
+
+```
+#!/usr/bin/env bash
+
+net="mobilenet_v2"
+CPU_ARCH="arm32"
+DNNC_MODE="debug"
+dnndk_board="ZedBoard"
+dnndk_dcf="../dcf/custom_zedboard.dcf"
+
+echo "Compiling Network ${net}"
+
+# Work space directory
+work_dir=$(pwd)
+
+# Path of tensorflow quantization model
+model_dir=${work_dir}/quantize_results
+# Output directory
+output_dir="dnnc_output"
+
+tf_model=${model_dir}/deploy_model.pb
+
+DNNC=dnnc
+
+# Get DNNDK config info
+if [ ! -f /etc/dnndk.conf ]; then
+    echo "Error: Cannot find /etc/dnndk.conf"
+    exit 1
+else
+    tmp=$(grep "DNNDK_VERSION=" /etc/dnndk.conf)
+    dnndk_version=${tmp#DNNDK_VERSION=}
+    dnndk_version=${dnndk_version#v}
+    echo "DNNDK      : $dnndk_version"
+    echo "Board Name : $dnndk_board"
+    echo "DCF file   : $dnndk_dcf"
+fi
+
+if [ ! -d "$model_dir" ]; then
+    echo "Can not found directory of $model_dir"
+    exit 1
+fi
+
+[ -d "$output_dir" ] || mkdir "$output_dir"
+
+echo "CPU Arch   : $CPU_ARCH"
+echo "DNNC Mode  : $DNNC_MODE"
+echo "$(dnnc --version)"
+$DNNC   --parser=tensorflow                         \
+       --frozen_pb=${tf_model}                     \
+       --output_dir=${output_dir}                  \
+       --dcf=${dnndk_dcf}                          \
+       --mode=${DNNC_MODE}                         \
+       --cpu_arch=${CPU_ARCH}                      \
+       --net_name=${net}
+```
+
+When creating a ZedBoard application it is important to make sure the CPU Arch selected is `arm32`, otherwise the DPU model won't work. It is also important to specify where is your board `.dcf` file located. If you are using the Petalinux Xilinx image for ZedBoard that can be donwloaded [here](https://www.xilinx.com/products/design-tools/ai-inference/ai-developer-hub.html#edge), you'll find this file in the `<dnndk_package_v3.1_directory>/host_x86/dcf/ZedBoard.dcf`. If you have a custom project, you can generate the `.dcf` file with the `DLet` tool explained in section [TensorFlow model](#tensorflow-model), subsection `Network Compilation >> 1. DLet`. The output of the compilation tool when using the Xilinx Petalinux image is the following, as this image doesn't have the `depthWiseConv` layer enabled. To check if your DPU has this layer enabled, you can also run the command `dexplorer -w` in your board. If you use a custom `.dcf` file, make sure you don't modify its name, or the file might not be properly used by the DNNC tool. To create the file, locate the .hwh file and run the following command.
+
+```
+$ dlet -f /media/arroas/HDD/MinhasCousas/EEI/Mestrado/2_Curso/TFM/vitis-dnn/ZedBoard_DNNs/ZedBoard_DPU_2019_2/ZedBoard_DPU_2019_2.srcs/sources_1/bd/design_1/hw_handoff/design_1.hwh
+```
+
+The output should look like this:
+
+```
+[DLet]Generate DPU DCF file dpu-05302000-302000-202005302000-2000-00.dcf successfully.
+*** stack smashing detected ***: <unknown> terminated
+Aborted (core dumped)
+```
+
+I now re-name the file to `custom_zedboard.dcf`, and execute the DNNC tool.
+
+Now you can run the compilation script, which should have the following output:
+
+```
+Compiling Network mobilenet_v2
+DNNDK      : 3.1
+Board Name : ZedBoard
+DCF file   : ../dcf/custom_zedboard.dcf
+CPU Arch   : arm32
+DNNC Mode  : debug
+dnnc version v3.00
+DPU Target : v1.4.0
+Build Label: Aug  9 2019 05:23:25
+Copyright @2019 Xilinx Inc. All Rights Reserved.
+
+[DNNC][Warning] layer [MobilenetV2_Logits_Squeeze] (type: Squeeze) is not supported in DPU, deploy it in CPU instead.
+[DNNC][Warning] layer [MobilenetV2_Predictions_Softmax] (type: Softmax) is not supported in DPU, deploy it in CPU instead.
+
+DNNC Kernel topology "mobilenet_v2_kernel_graph.jpg" for network "mobilenet_v2"
+DNNC kernel list info for network "mobilenet_v2"
+                               Kernel ID : Name
+                                       0 : mobilenet_v2_0
+                                       1 : mobilenet_v2_1
+
+                             Kernel Name : mobilenet_v2_0
+--------------------------------------------------------------------------------
+                             Kernel Type : DPUKernel
+                               Code Size : 0.48MB
+                              Param Size : 5.80MB
+                           Workload MACs : 1164.40MOPS
+                         IO Memory Space : 1.10MB
+                              Mean Value : 0, 0, 0,
+                              Node Count : 36
+                            Tensor Count : 37
+                    Input Node(s)(H*W*C)
+              MobilenetV2_Conv_Conv2D(0) : 224*224*3
+                   Output Node(s)(H*W*C)
+MobilenetV2_Logits_Conv2d_1c_1x1_Conv2D(0) : 1*1*1001
+
+
+                             Kernel Name : mobilenet_v2_1
+--------------------------------------------------------------------------------
+                             Kernel Type : CPUKernel
+                    Input Node(s)(H*W*C)
+              MobilenetV2_Logits_Squeeze : 1*1*1001
+                   Output Node(s)(H*W*C)
+         MobilenetV2_Predictions_Softmax : 1*1*1001
+```
+
+
+
+
+
+
+Five results for `tf_mobilenetv2_1.4`.
+
+```
+  DPU Task Execution time: 27727us
+
+  DPU Task Execution time: 27731us
+
+  DPU Task Execution time: 27728us
+
+  DPU Task Execution time: 27734us
+
+  DPU Task Execution time: 27731us
 ```
