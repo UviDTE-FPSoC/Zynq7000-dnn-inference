@@ -6,7 +6,7 @@ In this guide it is preteded to explain the whole process to implement DNN infer
 
 ### Table of Contents
 
-- [Prerequisites](#prereqisites)
+- [Prerequisites](#prerequisites)
 - [Installation of Diligent Board Files](#installation-of-digilen-board-files)
 - [Hardware description project](#hardware-description-project)
   - [Create a Vivado Design Suite Project](#create-a-vivado-design-suite-project)
