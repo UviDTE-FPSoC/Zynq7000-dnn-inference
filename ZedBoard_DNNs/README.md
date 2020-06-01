@@ -24,7 +24,7 @@ In this guide it is preteded to explain the whole process to implement DNN infer
     - [Add libraries to RootFS](#add-libraries-to-rootfs)
     - [Additional configuration](#additional-configuration)
 - [Deep Neural Network Development Kit](#deep-neural-network-development-kit)
-  - [Donwload and Installation of the DNNDK](#download-and-installation-of-the-dnndk)
+  - [Download and Installation of the DNNDK](#download-and-installation-of-the-dnndk)
     - [Setting up the host](#setting-up-the-host)
     - [Setting up the ZedBoard](#setting-up-the-zedboard)
     - [Execute examples](#execute-examples)
@@ -815,7 +815,7 @@ This means that to work with ZedBoard the only option is using the latest releas
 
 
 
-### Donwnload and Installation of the DNNDK
+### Download and Installation of the DNNDK
 The latest version of the DNNDK can be downloaded [here](https://www.xilinx.com/products/design-tools/ai-inference/ai-developer-hub.html#edge), under `Edge AI Tools`. To download the release that corresponds to the v1.6 documentation you can just click [here](https://login.xilinx.com/app/xilinxinc_f5awsprod_1/exknv8ms950lm0Ldh0x7/sso/saml). The download requires to log into you Xilinx account, but its totally free. Once the package is downloaded, we create the following directory and extract the package.
 
 ```
