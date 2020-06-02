@@ -2,7 +2,7 @@
 
 In this guide it is preteded to explain the whole process to implement DNN inference on Zedboard. Software tools that have to be installed, creation of the hardware description project, configuration of an Operating System project to use this harware description with the ZedBoard, installation of Edge AI compilation tools and inference of several DNN models such as mobilenetv1, mobilenetv2 and inceptionv1.
 
-> NOTE: In the following sections, this symbol `#` indicates that the commands displayed are being executed in the board, while `$` indicates that commands are being executed in the host.
+> NOTE: In the following sections, the `$` symbol preceding a line of code indicates that commands are being executed in a host machine such as a computer, while `#` indicates that the commands displayed are being executed in the target board.
 
 ### Table of Contents
 
@@ -44,13 +44,9 @@ In this guide it is preteded to explain the whole process to implement DNN infer
 
 Prerequisites
 -------------
+- Host machine (computer/laptop) with Ubuntu 18.04.2 installed. Version required for proper Vivado installation at the moment of writing this guide. You can update to 18.04 LTS once Vivado has been installed.
 - Vivado Design Suite v2019.2. Installation guide [here](https://github.com/UviDTE-FPSoC/Zynq7000-examples/tree/master/SD-operating-system/PetaLinux/2019.2).
-- PetaLinux 2019.2. Make sure the Vivado Design Suite and PetaLinux are the same version. The previous guide shows how to install petalinux.
-
-Which Ubuntu I'm using, all tools of Xilinx I'm using ... .
-In the Vivado installation, import the board files.
-
-
+- PetaLinux 2019.2. Make sure the Vivado Design Suite and PetaLinux are the same version. The previous guide shows how to install petalinux as well.
 
 
 
@@ -98,6 +94,7 @@ Open the Vivado tool. One easy way to do this in Ubuntu 18.04 LTS would be to op
 ![alt text](https://raw.githubusercontent.com/UviDTE-FPSoC/vitis-dnn/master/ZedBoard_DNNs/GuideImages/BoardFile.png)
 
 - Once you are in the project summary, click `Finish`.
+
 
 
 ### Import DPU IP into the project
@@ -766,7 +763,7 @@ $ petalinux-config -c rootfs
 
 The rest of the libraries would be added in an analog manner.
 
-It is important to add all the opencv libraries under `>> file system >> libs >> opencv`, as the compilation of them generates a file `opencv.pc` in the RootFS file system at `<rootfs_partition>/usr/lib/pkgconfig/` that is necessary to compile the DNN applications when using the DNNDK. It is also important to add the `packagegroup-petalinux-pyton-modules`, as they enable executing the `pip` command, which is neccesary to install some python dependencies later on. The `packagegroup-core-buildessential` is fundamental to execute the `make` command when compiling applications in the ZedBoard. It is also recommended to add the `tar` package just in case it is necessary to untar some files and the `vim` text editor, as a console editor can be very helpful when working with ZedBoard.
+It is important to add all the opencv libraries under `>> file system >> libs >> opencv`, as the compilation of them generates a file `opencv.pc` in the RootFS file system at `<rootfs_partition>/usr/lib/pkgconfig/` that is necessary to compile the DNN applications when using the DNNDK. It is also important to add the `packagegroup-petalinux-pyton-modules`, as they enable executing the `pip` command, which is neccesary to install some python dependencies later on. The `packagegroup-core-buildessential` is fundamental to execute the `make` command when compiling applications in the ZedBoard. It is also recommended to add the `tar` package just in case it is necessary to untar some files and the `vim` text editor, as a console editor can be very helpful when debuging your applications with ZedBoard. Here is a [link](https://www.radford.edu/~mhtay/CPSC120/VIM_Editor_Commands.htm) to a `vim` command tutorial.
 
 - Re-build the project.
 
@@ -798,6 +795,8 @@ KERNEL_MODULE_AUTOLOAD += "dpu"
 Build the PetaLinux design and generate the BOOT.bin file:
 
 ```
+$ petalinux-build
+
 $ petalinux-package --boot --force --fsbl ./images/linux/zynq_fsbl.elf --fpga ./images/linux/system.bit --u-boot
 ```
 
@@ -2797,10 +2796,55 @@ int main(void) {
 }
 ```
 
+-----------------------------------------
+
+
+2. Writing results to a `.txt` file.
+
+In order to manage `.txt` files we are going to use the `std::ofstream` class. The documentation for this class can be found [here](https://www.cplusplus.com/reference/fstream/ofstream/).
+
+The idea is to write the timed values of each inference iteration into a text file that can be later handeled by any software to create graphic results. In order to do this, we are going to explain the datatypes and functions that should be used to later show a simple example of how the final application could be programmed.
+
+- **std::ofstream**: output stream class to operate on files. Objects of this class maintain a filebuf object as their internal stream buffer, which performs input/output operations on the file they are associated with (if any).
+
+- **std::ofstream::ofstream**: constructor of the ofstream class, `ofstream();` or `explicit ofstream (const char* filename, ios_base::openmode mode = ios_base::out);`. The default constructor only creates a `std::ofstream` object without any parameters filled. With the second option, a the name of the file has to be passed to the constructor, which will create the file if it doesn't exit. The open mode default is set to `ios_base::out`, which opens the file to be written onto, erasing any previous content. `ios_base::in` opens the file in read mode and `ios_base::app` opens the file in append mode, which enables to add lines at the bottom of the file.
+
+- **std::ofstream::open**: function that opens the file identified by the filename, associating it to the stream object, `void open (const char* filename,  ios_base::openmode mode = ios_base::out);`. The open mode specifies what the file has been opened for, being its default `ios_base::out`.
+
+- **std::ofstream::close**: function that closes the file currently associated with the object, disasociating it from the stream, `void close()`. The function doesn't delete the object itself, therefore trying to create a new `std::ofstream` with the same name will result in triggering an error when compiling.
+
+- **std::ofstream::operator<<**: this operator is an insertion operator, which enables writing or appending lines to the file the stream object is associated with.
+
+In the example code, the operation will be inserted in a for loop(), as this is how it will be used for the DNN inference.
+
+```c++
+int main(void) {
+  /* Create file to store a  counter */
+    ofstream fs("counter_output.txt");  // The file is opened in write mode, erasing any previous content of the file if it existed
+    fs.close(); // The file now closed, as we will be opening it in a different mode and inside the loop.
+
+    for (int i = 0; i<100; i = i + 1) {
+      /* Write results to file */
+        fs.open("counter_output.txt", std::fstream::out | std::fstream::app); //The file is opened in write or append mode, depending if there is any content in it.
+        if(!fs)   // Check if the file exists
+        {
+            cerr<<"Cannot open the output file."<<std::endl;
+        } else{
+            fs << "Counter value: " << i << ";\n";    // Write the counter value, adding a ';' at the end of the number and a carriage return character '\n'
+            fs.close();
+        }
+    }
+}
+```
+
+
+
+
+
 
 -------------------------------------------------------------------------------
 
-**Run the application in the ZedBoard**.
+**Run the application in the ZedBoard**
 
 The first step is to copy the application directory to the ZedBoard. Enter the directory that contains the folder with the ZedBoard application and open a terminal. Execute the following commands.
 
