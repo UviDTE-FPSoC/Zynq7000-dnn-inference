@@ -30,7 +30,7 @@ def calib_input(iter):
     curline = line[iter * calib_batch_size + index]
     calib_image_name = curline.strip()
     image = cv2.imread(calib_image_dir + calib_image_name)
-    image = mean_image_subtraction(image)
+    image = bgr2rgb(image)
     image = central_crop(image, 0.875)
     image = cv2.resize(image, (224, 224))
     image = normalize(image)

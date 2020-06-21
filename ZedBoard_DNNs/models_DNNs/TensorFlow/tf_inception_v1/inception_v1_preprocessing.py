@@ -1,7 +1,7 @@
 import cv2
 from sklearn import preprocessing
 
-def mean_image_subtraction(image):
+def bgr2rgb(image):
   B, G, R = cv2.split(image)
   image = cv2.merge([R, G, B])
   return image
