@@ -8,7 +8,7 @@ def eval_input(iter, eval_image_dir, eval_image_list, class_num, eval_batch_size
     curline = line[iter * eval_batch_size + index]
     [image_name, label_id] = curline.split(' ')
     image = cv2.imread(eval_image_dir + image_name)
-    image = mean_image_subtraction(image)
+    image = bgr2rgb(image)
     image = central_crop(image, 0.875)
     image = cv2.resize(source, (299, 299))
     image = normalize(image)
@@ -30,7 +30,7 @@ def calib_input(iter):
     curline = line[iter * calib_batch_size + index]
     calib_image_name = curline.strip()
     image = cv2.imread(calib_image_dir + calib_image_name)
-    image = mean_image_subtraction(image)
+    image = bgr2rgb(image)
     image = central_crop(image, 0.875)
     image = cv2.resize(source, (299, 299))
     image = normalize(image)
