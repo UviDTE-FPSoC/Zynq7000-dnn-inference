@@ -8,12 +8,10 @@ def eval_input(iter, eval_image_dir, eval_image_list, class_num, eval_batch_size
     curline = line[iter * eval_batch_size + index]
     [image_name, label_id] = curline.split(' ')
     image = cv2.imread(eval_image_dir + image_name)
-    image = mean_image_subtraction(image)
-    image = image/255.0
+    image = bgr2rgb(source)
     image = central_crop(image, 0.875)
     image = cv2.resize(image, (224, 224))
-    image = image - 0.5
-    image = image*2.0
+    image = normalize(image)
     images.append(image)
     labels.append(int(label_id) + 1)
   lb = preprocessing.LabelBinarizer()
@@ -32,11 +30,9 @@ def calib_input(iter):
     curline = line[iter * calib_batch_size + index]
     calib_image_name = curline.strip()
     source = cv2.imread(calib_image_dir + calib_image_name)
-    image = mean_image_subtraction(source)
-    image = image/255.0
+    image = bgr2rgb(source)
     image = central_crop(image, 0.875)
     image = cv2.resize(image, (224, 224))
-    image = image - 0.5
-    image = image*2.0
+    image = normalize(image)
     images.append(image)
   return {"input": images}
