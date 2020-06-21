@@ -1,0 +1,9 @@
+decent_q quantize \
+  --input_frozen_graph ./float/inception_v3.pb \
+  --input_nodes input \
+  --input_shapes ?,299,299,3 \
+  --output_nodes InceptionV3/Predictions/Reshape_1 \
+  --input_fn inception_v3_input_fn.calib_input \
+  --method 1 \
+  --gpu 0 \
+  --calib_iter 100 \
