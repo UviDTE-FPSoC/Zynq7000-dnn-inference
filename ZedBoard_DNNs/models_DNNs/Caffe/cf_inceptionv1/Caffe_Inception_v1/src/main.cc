@@ -214,7 +214,7 @@ void preprocessing(Mat &image, DPUTask *taskDNN, int &inputTensor_width, int &in
     short_size_resize(image);
 
     /* Centre crop to the actual size of the input tensor, 224x224 for Inceptionv1 */
-    central_crop(image, input_width, input_height);
+    central_crop(image, inputTensor_width, inputTensor_height);
 
     /* Substract the mean value of each color layer */
     mean_value_substract(image);
