@@ -140,16 +140,16 @@ void short_size_resize(Mat &image) {
     float scale = 0;
     int proportional_side = 0;
 
-    if (height > width) {   // If the width is the shortest side, resize it to 256
-        scale = 256.0/width;
+    if (height > width) {   // If the width is the shortest side, resize it to 320
+        scale = 320.0/width;
         proportional_side = height*scale;
-        resize(image, image, Size(256, proportional_side));
-    } else if (height < width) {   // If the height is the shortest side, resize it to 256
-        scale = 256.0/height;
+        resize(image, image, Size(320, proportional_side));
+    } else if (height < width) {   // If the height is the shortest side, resize it to 320
+        scale = 320.0/height;
         proportional_side = width*scale;
-        resize(image, image, Size(proportional_side, 256));
+        resize(image, image, Size(proportional_side, 320));
     } else {    // If they are equal, resize both
-        resize(image, image, Size(256, 256));
+        resize(image, image, Size(320, 320));
     }
 }
 
@@ -208,13 +208,13 @@ void mean_value_substract(Mat &image) {
  *
  * @return none
  */
-void preprocessing(Mat &image, DPUTask *taskDNN, int &inputTensor_width, int &inputTensor_height) {
+void preprocessing(Mat &image, int &inputTensor_width, int &inputTensor_height) {
     
-    /* Resize the shortest size to 256, keeping the aspect ratio, which means resizing the other size proportionally. */
+    /* Resize the shortest size to 320, keeping the aspect ratio, which means resizing the other size proportionally. */
     short_size_resize(image);
 
     /* Centre crop to the actual size of the input tensor, 299x299 for Inceptionv3 */
-    central_crop(image, input_width, input_height);
+    central_crop(image, inputTensor_width, inputTensor_height);
 
     /* Substract the mean value of each color layer */
     mean_value_substract(image);
@@ -353,7 +353,7 @@ void runDNN(DPUTask *taskDNN) {
         Mat image = imread(inferenceImages + imageName);       
         
         /* Perform image preprocessing */
-        preprocessing(image, taskDNN, inputTensor_width, inputTensor_height);
+        preprocessing(image, inputTensor_width, inputTensor_height);
 
         /* Initialize and start timer */
         std::chrono::time_point<std::chrono::high_resolution_clock> start, end;
