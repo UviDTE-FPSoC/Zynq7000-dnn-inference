@@ -215,7 +215,7 @@ void normalization(Mat &image) {
  *
  * @return none
  */
-void preprocessing(Mat &image, DPUTask *taskDNN, int &inputTensor_width, int &inputTensor_height) {
+void preprocessing(Mat &image, int &inputTensor_width, int &inputTensor_height) {
     
     /* BGR to RGB image conversion */
     bgr2rgb(image);
@@ -364,7 +364,7 @@ void runDNN(DPUTask *taskDNN) {
         Mat image = imread(inferenceImages + imageName);       
         
         /* Perform image preprocessing */
-        preprocessing(image, taskDNN, inputTensor_width, inputTensor_height);
+        preprocessing(image, inputTensor_width, inputTensor_height);
 
         /* Initialize and start timer */
         std::chrono::time_point<std::chrono::high_resolution_clock> start, end;
