@@ -395,8 +395,6 @@ void runDNN(DPUTask *taskDNN) {
         cout << "The correct solution is " << labels[solutions[sol_counter]] << endl;
         sol_counter = sol_counter + 1;
         cout << "The top1 accuracy is " << float(top1)/sol_counter << " --------- The top5 accuracy is " << float(top5)/sol_counter << endl;
-
-        break;
     }
 
     float top1_metric = float(top1)/sol_counter;
