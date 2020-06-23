@@ -192,7 +192,7 @@ void central_crop(Mat &image, int &crop_width, int &crop_height) {
  */
 void mean_value_substract(Mat &image) {
     
-    subtract(image, Scalar(104, 117, 123), image);
+    subtract(image, Scalar(104.0, 117.0, 123.0), image);
 
 }
 
@@ -202,7 +202,6 @@ void mean_value_substract(Mat &image) {
  * @brief perform image pre-processing for TensorFlow Inceptionv1
  *
  * @param image - reference to the mat object containing an image in RGB format
- * @param taskDNN - pointer to the neural network task Task
  * @param inputTensor_width - reference to the input tensor width
  * @param inputTensor_height - reference to the input tensor height
  *
@@ -350,7 +349,7 @@ void runDNN(DPUTask *taskDNN) {
         cout << "\nLoad image : " << imageName << endl;
 
         /* Load image and Set image into DPU Task for the DNN */
-        Mat image = imread(inferenceImages + imageName);       
+        Mat image = imread(inferenceImages + imageName);    
         
         /* Perform image preprocessing */
         preprocessing(image, inputTensor_width, inputTensor_height);
@@ -396,6 +395,8 @@ void runDNN(DPUTask *taskDNN) {
         cout << "The correct solution is " << labels[solutions[sol_counter]] << endl;
         sol_counter = sol_counter + 1;
         cout << "The top1 accuracy is " << float(top1)/sol_counter << " --------- The top5 accuracy is " << float(top5)/sol_counter << endl;
+
+        break;
     }
 
     float top1_metric = float(top1)/sol_counter;
