@@ -202,7 +202,6 @@ void mean_value_substract(Mat &image) {
  * @brief perform image pre-processing for TensorFlow Inceptionv3
  *
  * @param image - reference to the mat object containing an image in RGB format
- * @param taskDNN - pointer to the neural network task Task
  * @param inputTensor_width - reference to the input tensor width
  * @param inputTensor_height - reference to the input tensor height
  *
