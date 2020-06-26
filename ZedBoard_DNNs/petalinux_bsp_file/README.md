@@ -1,3 +1,6 @@
+Build the PetaLinux project with a .bsp file
+============================================
+
 This file gives a quick guide on how to create a PetaLinux prject ready to use for Inference on a ZedBoard. If you prefer to build the project step by step, refer to this repository's [wiki](https://github.com/UviDTE-FPSoC/vitis-dnn/wiki) section and go through the [Software Installation](https://github.com/UviDTE-FPSoC/vitis-dnn/wiki/Software-Installation) page, subsection [Petalinux](https://github.com/UviDTE-FPSoC/vitis-dnn/wiki/Software-Installation#petalinux) and the [PetaLinux project configuration to run Deep Neural Networks](https://github.com/UviDTE-FPSoC/vitis-dnn/wiki/Petalinux-project-configuration-to-run-Deep-Neural-Networks) page.
 
 In order to create a new project with the same configuration as the one in the .bsp file, download the ZedBoard_DNNs_DPUv3_0.bsp file in this folder of the repository. Once the file has been downloaded, enter the folder you want to create you project at and enter the following command.
